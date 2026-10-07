@@ -179,3 +179,42 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# -------------------------------------------------------------
+# Blackjack Pilot - Project Specific Ignores
+# -------------------------------------------------------------
+# YOLO & Ultralytics training runs & temporary files
+runs/
+**/runs/
+*.cache
+labels.cache
+
+# Base model downloads in root/training (keep project weights in models/)
+/yolo*.pt
+training/yolo*.pt
+!models/*.pt
+
+# Datasets: Keep directory skeleton via .gitkeep and config, ignore raw data
+dataset/**/*.jpg
+dataset/**/*.jpeg
+dataset/**/*.png
+dataset/**/*.bmp
+dataset/**/*.txt
+!dataset/**/.gitkeep
+!dataset/data.yaml
+
+# Raw videos & archives
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.zip
+*.tar
+*.gz
+*.7z
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
