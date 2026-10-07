@@ -7,7 +7,6 @@ smooth clean sliders, Hi-Lo counting, basic strategy, and support for:
 3. Newly trained Roboflow/Mixed model (v2 - Medium) by default
 """
 
-import math
 import os
 import sys
 import time
@@ -23,9 +22,12 @@ try:
 
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    except Exception:
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            pass
+except ImportError:
     pass
 
 from PySide6.QtCore import QPoint, QRect, Qt, QThread, Signal, Slot
@@ -103,7 +105,7 @@ def calculate_hand_value(cards):
         else:
             try:
                 total += int(c)
-            except Exception:
+            except (TypeError, ValueError):
                 pass
     while total > 21 and aces > 0:
         total -= 10
@@ -184,9 +186,9 @@ class ModelEngine:
                     else "CPU"
                 )
                 return True, f"Aktiv ({dev_name})"
-            except Exception as e:
-                print(f"[ModelEngine] Fel vid laddning av {name}: {e}")
-                return False, f"Fel: {e}"
+            except (FileNotFoundError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                print(f"[ModelEngine] Fel vid laddning av {name}: {exc}")
+                return False, f"Fel: {exc}"
         else:
             print(f"[ModelEngine] Fil saknas: {path}")
             return False, "Modellfil saknas"
@@ -414,7 +416,7 @@ class CaptureWorker(QThread):
                     try:
                         sct_img = sct.grab(self.feed_bbox)
                         img_bgr = np.array(sct_img)[:, :, :3]
-                    except Exception as e:
+                    except (OSError, TypeError, ValueError):
                         # Fallback till Qt-screen grab vid multi-monitor med negativa koordinater
                         try:
                             screen = QApplication.primaryScreen()
@@ -430,14 +432,14 @@ class CaptureWorker(QThread):
                                 qimg.constBits(), dtype=np.uint8
                             ).reshape((qimg.height(), qimg.width(), 3))
                             img_bgr = arr
-                        except Exception:
+                        except (AttributeError, RuntimeError, TypeError, ValueError):
                             pass
 
                     if img_bgr is not None:
                         try:
                             result = self.process_frame(img_bgr)
                             self.frame_ready.emit(result)
-                        except Exception:
+                        except (AttributeError, RuntimeError, TypeError, ValueError):
                             pass
                 time.sleep(0.04)  # ~25 FPS max
 
@@ -940,7 +942,7 @@ class ModernBlackjackApp(QMainWindow):
         model_group = QGroupBox("AI Modellval")
         mg_layout = QVBoxLayout(model_group)
         self.combo_model = QComboBox()
-        for name in self.model_engine.model_paths.keys():
+        for name in self.model_engine.model_paths:
             self.combo_model.addItem(name)
         self.combo_model.currentTextChanged.connect(self.on_model_changed)
         mg_layout.addWidget(self.combo_model)
@@ -1187,21 +1189,21 @@ class ModernBlackjackApp(QMainWindow):
         try:
             self.counter.update_table(all_cards)
             self.update_counter_ui()
-        except Exception as e:
-            print(f"[Counter Error]: {e}")
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            print(f"[Counter Error]: {exc}")
 
         # 4. Uppdatera strategi och runda
         try:
             self.update_game_decision()
-        except Exception as e:
-            print(f"[Strategy Error]: {e}")
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            print(f"[Strategy Error]: {exc}")
 
     def update_game_decision(self):
         valid_dealer = [c for c in self.last_dealer_cards if c != "B"]
         valid_player = [c for c in self.last_player_cards if c != "B"]
 
         # Kolla runda-status (Blackjack, Push, Bust, Win/Lose etc.)
-        round_state, round_msg = self.strategy.evaluate_round(
+        round_state, _ = self.strategy.evaluate_round(
             self.last_player_cards, self.last_dealer_cards
         )
         if round_state in ("WIN", "LOSE", "PUSH", "BLACKJACK"):

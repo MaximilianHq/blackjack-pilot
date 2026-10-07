@@ -1,12 +1,10 @@
 import glob
 import os
 import re
-import sys
 import tkinter as tk
 from tkinter import filedialog
 
 import cv2
-import numpy as np
 
 # ==============================================================================
 # ⚙️ INSTÄLLNINGAR & VARIABLER
@@ -33,8 +31,7 @@ def get_next_frame_index(folder, ext):
         match = re.search(r"frame_(\d+)", os.path.basename(f))
         if match:
             idx = int(match.group(1))
-            if idx > highest_idx:
-                highest_idx = idx
+            highest_idx = max(highest_idx, idx)
 
     return highest_idx + 1
 
@@ -70,7 +67,7 @@ def extract_from_video(video_path, output_dir, start_idx, interval_sec, ext):
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     duration_sec = total_frames / fps
 
-    print(f"\n" + "=" * 55)
+    print("\n" + "=" * 55)
     print(f"Video: {os.path.basename(video_path)}")
     print(
         f"Info:  {w}x{h} px | {duration_sec/60:.1f} min ({duration_sec:.0f}s) | {fps:.1f} FPS"
@@ -78,7 +75,7 @@ def extract_from_video(video_path, output_dir, start_idx, interval_sec, ext):
     print(f"Start: frame_{start_idx:04d}.{ext}")
     print("=" * 55)
 
-    interval_frames = max(1, int(round(fps * interval_sec)))
+    interval_frames = max(1, round(fps * interval_sec))
     saved = 0
     curr_idx = start_idx
 
@@ -138,7 +135,7 @@ def main():
         )
         total_new += saved
 
-    print(f"\n" + "=" * 55)
+    print("\n" + "=" * 55)
     print("--- ALLT KLART! ---")
     print(f"Totalt antal nya bilder: {total_new} st")
     print(f"Totalt i mappen:         {next_num - 1} st")

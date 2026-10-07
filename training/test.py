@@ -1,6 +1,5 @@
 import glob
 import os
-import sys
 import tkinter as tk
 from tkinter import filedialog
 
@@ -93,13 +92,13 @@ def main():
     if SAVE_RESULTS:
         os.makedirs(output_dir, exist_ok=True)
 
-    print(f"\n==================================================")
+    print("\n==================================================")
     print(f"Testar {len(img_files)} bilder från: {target_dir}")
     print(f"Confidence threshold: {CONF_THRESHOLD*100:.0f}%")
-    print(f"Styrning: Klicka på bildfönstret och tryck på:")
-    print(f" -> Mellanslag / Enter / Valfri tangent: Nästa bild")
-    print(f" -> 'q' eller 'ESC': Avsluta testet")
-    print(f"==================================================\n")
+    print("Styrning: Klicka på bildfönstret och tryck på:")
+    print(" -> Mellanslag / Enter / Valfri tangent: Nästa bild")
+    print(" -> 'q' eller 'ESC': Avsluta testet")
+    print("==================================================\n")
 
     window_name = (
         "Blackjack YOLO Test (Tryck mellanslag for nasta bild, 'q' for avsluta)"
@@ -137,7 +136,7 @@ def main():
             break
 
     cv2.destroyAllWindows()
-    print(f"\n--- KLART! ---")
+    print("\n--- KLART! ---")
     print(
         f"Genomsnittligt antal hittade kort per bild: {total_cards_detected / max(1, len(img_files)):.1f} st"
     )

@@ -1,3 +1,6 @@
+from typing import ClassVar
+
+
 class BlackjackStrategy:
     def __init__(self):
         # Dealer upcards are integers 2-10 or the string 'A'
@@ -543,12 +546,12 @@ class BlackjackStrategy:
     # ------------------------------------------------------------------
     # Hi-Lo count based hints
     # ------------------------------------------------------------------
-    DEALER_ORDER = [2, 3, 4, 5, 6, 7, 8, 9, 10, "A"]
+    DEALER_ORDER: ClassVar[list[int | str]] = [2, 3, 4, 5, 6, 7, 8, 9, 10, "A"]
 
     # (hard total, dealer upcard): (operator, index, action)
     # Active when true count satisfies the operator against the index.
     # Based on the commonly used Hi-Lo "Illustrious 18" / Fab 4 indices.
-    HARD_DEVIATIONS = {
+    HARD_DEVIATIONS: ClassVar[dict[tuple[int, int | str], tuple[str, int, str]]] = {
         (16, 10): (">=", 0, "Stand"),
         (16, 9): (">=", 5, "Stand"),
         (15, 10): (">=", 4, "Stand"),
@@ -566,7 +569,7 @@ class BlackjackStrategy:
         (8, 6): (">=", 2, "Double"),
     }
     # (pair card, dealer upcard): (operator, index, action)
-    PAIR_DEVIATIONS = {
+    PAIR_DEVIATIONS: ClassVar[dict[tuple[int, int], tuple[str, int, str]]] = {
         (10, 5): (">=", 5, "Split"),
         (10, 6): (">=", 4, "Split"),
     }
@@ -615,11 +618,8 @@ class BlackjackStrategy:
         base = self._short_move(base_code)
 
         # Insurance
-        if dealer == "A" and len(cards) == 2:
-            if true_count >= 3:
-                hints.append(
-                    ("alert", f"Count TC {true_count:+.1f} >= +3: take INSURANCE")
-                )
+        if dealer == "A" and len(cards) == 2 and true_count >= 3:
+            hints.append(("alert", f"Count TC {true_count:+.1f} >= +3: take INSURANCE"))
 
         # Index deviation
         entry = None
@@ -657,8 +657,7 @@ class BlackjackStrategy:
             hints.append(
                 (
                     "warn",
-                    f"Borderline hand ({nb}). Check count TC {true_count:+.1f} "
-                    "(high = stand/double/split, low = hit)",
+                    f"Borderline hand ({nb}). Check count TC {true_count:+.1f} (high = stand/double/split, low = hit)",
                 )
             )
         return hints

@@ -44,7 +44,7 @@ def main():
     runs_dir = os.path.join(skript_mapp, "runs")
     run_name = "yolo11m_blackjack_1280"
 
-    results = model.train(
+    model.train(
         data=yaml_sokvag,
         epochs=120,
         patience=15,
