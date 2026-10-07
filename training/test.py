@@ -7,41 +7,41 @@ import cv2
 from ultralytics import YOLO
 
 # ==============================================================================
-# ⚙️ INSTÄLLNINGAR & VARIABLER
+# SETTINGS & CONFIGURATION
 # ==============================================================================
-# 1. Modell-sökväg (lämna tom för models/yolo11m_blackjack_1280.pt)
+# 1. Model path (leave empty for default models/yolo11m_blackjack_1280.pt)
 MODEL_PATH = ""
 
-# 2. Confidence-tröskel (0.10 till 0.90)
+# 2. Confidence threshold (0.10 to 0.90)
 CONF_THRESHOLD = 0.35
 
-# 3. Mapp med bilder att testa på (lämna tom för att öppna fildialog eller standard dataset/test/images)
+# 3. Test images folder (leave empty for dialog or dataset/test/images)
 TEST_FOLDER = ""
 
-# 4. Spara annoterade resultatbilder i test_results/
+# 4. Save annotated result images in test_results/
 SAVE_RESULTS = True
 # ==============================================================================
 
 
 def pick_folder_gui():
-    """Öppnar en Windows-dialog där du kan välja bildmapp."""
+    """Opens a file dialog to select the image directory."""
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
-    print("Öppnar fönster... Välj mappen med bilder du vill testa på:")
-    folder = filedialog.askdirectory(title="Välj mapp med testbilder")
+    print("Opening dialog... Select the folder containing test images:")
+    folder = filedialog.askdirectory(title="Select folder with test images")
     root.destroy()
     return folder
 
 
 def resolve_model(script_dir):
-    """Hittar standardmodellen i models/ eller runs/."""
-    rot_dir = os.path.dirname(script_dir)
-    default_model = os.path.join(rot_dir, "models", "yolo11m_blackjack_1280.pt")
+    """Finds default model in models/ or runs/."""
+    root_dir = os.path.dirname(script_dir)
+    default_model = os.path.join(root_dir, "models", "yolo11m_blackjack_1280.pt")
     if os.path.exists(default_model):
         return default_model
 
-    # Leta efter best.pt i träningsruns
+    # Search for best.pt in training runs
     found = glob.glob(os.path.join(script_dir, "runs", "**", "best.pt"), recursive=True)
     if found:
         return found[-1]
@@ -51,33 +51,33 @@ def resolve_model(script_dir):
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    rot_dir = os.path.dirname(script_dir)
+    root_dir = os.path.dirname(script_dir)
 
-    # 1. Bestäm modell
+    # 1. Determine model
     model_file = (
         MODEL_PATH
         if (MODEL_PATH and os.path.exists(MODEL_PATH))
         else resolve_model(script_dir)
     )
-    print(f"Laddar modell: {model_file}")
+    print(f"Loading model: {model_file}")
     model = YOLO(model_file)
 
-    # 2. Välj bildmapp
+    # 2. Select image folder
     if TEST_FOLDER and os.path.exists(TEST_FOLDER):
         target_dir = TEST_FOLDER
     else:
-        default_test = os.path.join(rot_dir, "dataset", "test", "images")
+        default_test = os.path.join(root_dir, "dataset", "test", "images")
         if os.path.exists(default_test) and any(os.scandir(default_test)):
-            print(f"Använder standard testmapp: {default_test}")
+            print(f"Using default test folder: {default_test}")
             target_dir = default_test
         else:
             target_dir = pick_folder_gui()
 
     if not target_dir or not os.path.exists(target_dir):
-        print("Ingen giltig mapp valdes. Avslutar.")
+        print("No valid folder selected. Exiting.")
         return
 
-    # 3. Hämta alla bilder i mappen
+    # 3. Retrieve all images in folder
     extensions = ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp")
     img_files = []
     for ext in extensions:
@@ -85,7 +85,7 @@ def main():
 
     img_files = sorted(img_files)
     if not img_files:
-        print(f"Inga bilder hittades i: {target_dir}")
+        print(f"No images found in: {target_dir}")
         return
 
     output_dir = os.path.join(script_dir, "test_results")
@@ -93,16 +93,14 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
 
     print("\n==================================================")
-    print(f"Testar {len(img_files)} bilder från: {target_dir}")
+    print(f"Testing {len(img_files)} images from: {target_dir}")
     print(f"Confidence threshold: {CONF_THRESHOLD*100:.0f}%")
-    print("Styrning: Klicka på bildfönstret och tryck på:")
-    print(" -> Mellanslag / Enter / Valfri tangent: Nästa bild")
-    print(" -> 'q' eller 'ESC': Avsluta testet")
+    print("Controls: Click image window and press:")
+    print(" -> Space / Enter / Any key: Next image")
+    print(" -> 'q' or 'ESC': Exit test")
     print("==================================================\n")
 
-    window_name = (
-        "Blackjack YOLO Test (Tryck mellanslag for nasta bild, 'q' for avsluta)"
-    )
+    window_name = "Blackjack YOLO Test (Press Space for next image, 'q' to exit)"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_name, 1280, 800)
 
@@ -120,9 +118,7 @@ def main():
         num_cards = len(results.boxes)
         total_cards_detected += num_cards
 
-        info_text = (
-            f"[{i+1}/{len(img_files)}] {img_name} | Hittade kort: {num_cards} st"
-        )
+        info_text = f"[{i+1}/{len(img_files)}] {img_name} | Detected cards: {num_cards}"
         print(info_text)
 
         cv2.imshow(window_name, annotated)
@@ -132,16 +128,16 @@ def main():
 
         key = cv2.waitKey(0) & 0xFF
         if key == ord("q") or key == 27:
-            print("Avbröt manuellt.")
+            print("Manually stopped.")
             break
 
     cv2.destroyAllWindows()
-    print("\n--- KLART! ---")
+    print("\n--- COMPLETE! ---")
     print(
-        f"Genomsnittligt antal hittade kort per bild: {total_cards_detected / max(1, len(img_files)):.1f} st"
+        f"Average cards detected per image: {total_cards_detected / max(1, len(img_files)):.1f}"
     )
     if SAVE_RESULTS:
-        print(f"Alla sparade resultat finns i: {output_dir}")
+        print(f"All saved results available in: {output_dir}")
 
 
 if __name__ == "__main__":

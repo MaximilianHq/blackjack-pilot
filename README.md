@@ -1,71 +1,88 @@
 # Blackjack Pilot 🃏
 
-Modern AI-driven Blackjack Assistant och YOLO11 träningsmiljö med automatisk kortdetektering, Hi-Lo korträkning och realtids Basic Strategy rådgivare.
+Modern AI-powered Blackjack Assistant and YOLO11 training workspace featuring real-time card detection, Hi-Lo card counting, and instant Basic Strategy recommendations.
 
 ---
 
-## 📁 Projektstruktur
+## 📁 Project Structure
 
 ```text
 blackjack-pilot/
-├── main.py                     # Huvudapplikation (PySide6 GUI, live screen capture)
-├── blackjack_strategy.py       # Basic Strategy motor (hard, soft, pair splits)
-├── card_counter.py             # Hi-Lo korträknare & True Count beräkning
-├── round_stats.py              # Statistik, vinstfrekvens och rundspårning
-├── requirements.txt            # Python-beroenden
+├── main.py                     # Main application (PySide6 GUI, live screen capture)
+├── blackjack_strategy.py       # Basic Strategy engine (hard, soft, pair splits, Illustrious 18)
+├── card_counter.py             # Hi-Lo card counter & True Count estimation
+├── round_stats.py              # Statistics, win rate tracking, and round evaluation
+├── requirements.txt            # Python dependencies
+├── docs/
+│   └── basic_strategy.png      # Basic Strategy reference chart
 ├── models/
-│   └── yolo11m_blackjack_1280.pt # Tränad YOLO11m modell @ 1280p (97.4% mAP50)
-├── dataset/                    # Datasetstruktur för framtida träning
-│   ├── data.yaml               # YOLO datasetkonfiguration
+│   └── yolo11m_blackjack_1280.pt # Trained YOLO11m model @ 1280p (97.4% mAP50)
+├── dataset/                    # Dataset directory structure for training
+│   ├── data.yaml               # YOLO dataset configuration
 │   ├── train/images/ & labels/
 │   ├── valid/images/ & labels/
 │   └── test/images/ & labels/
-└── training/                   # Tränings- & analysverktyg
-    ├── train.py                # Träna YOLO11m på 1280p widescreen (GPU optimerad)
-    ├── test.py                 # Interaktiv bildgranskning & detekteringstest
-    └── video2image.py          # Automatisk frame-extraherare från videor
+└── training/                   # Model training & analysis utilities
+    ├── train.py                # Train YOLO11m at 1280p widescreen (GPU optimized)
+    ├── test.py                 # Interactive image detection tester
+    └── video2image.py          # Automatic frame extractor from gameplay videos
 ```
 
 ---
 
-## 🚀 Kom igång
+## 🚀 Getting Started
 
-### 1. Installera beroenden
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Starta appen
+### 2. Launch the Application
 ```bash
 python main.py
 ```
 
-### 3. Användning
-1. **Välj videofeed**: Klicka på *Markera Videofeed (Bord)* och dra en ruta över ditt blackjack-bord (t.ex. videofönstret eller fullscreen feeden).
-2. **Definiera zoner**:
-   - Klicka på *Välj Dealer-zon* och markera området där dealerns kort landar.
-   - Klicka på *Välj Spelar-zon* och markera området för din box/dina kort.
-3. **Spela**: Appen identifierar korten i realtid, visar dealer upcard, din handsumma, Hi-Lo räkning och optimal Basic Strategy åtgärd (Hit, Stand, Double, Split).
+### 3. Usage & Setup
+1. **Select Video Feed**: Click **📹 1. Select Full Video Feed** and drag a rectangle over the blackjack table (e.g. video window, browser stream, or full screen).
+2. **Define Sub-Zones**:
+   - Click **👑 2. Select Dealer Zone** and drag a box over the dealer's card placement area.
+   - Click **👤 3. Select Player Zone** and drag a box over your personal card box / hand area.
+3. **Play**: The system identifies cards in real time, displays dealer upcard, your hand total, the running/true count, and optimal Basic Strategy actions (Hit, Stand, Double, Split, Surrender).
 
 ---
 
-## 🛠️ Träning & Modellverktyg
+## 📊 Basic Strategy Chart
 
-### Testa modellen på bilder:
+The assistant implements standard casino multi-deck basic strategy rules with optional count-based Illustrious 18 deviations:
+
+<p align="center">
+  <img src="docs/basic_strategy.png" alt="Basic Strategy Reference Chart" width="600" />
+</p>
+
+### Strategy Legend:
+- **Hard Totals**: Decisions based on non-Ace totals (or hands where Ace must count as 1 to avoid busting).
+- **Soft Totals**: Hands containing an Ace counted as 11 (e.g., A,7 = Soft 18).
+- **Pair Splitting**: Options to split identical-rank cards into two independent hands.
+- **Surrender**: Forfeit half the bet on high-risk matchups when late surrender is offered.
+
+---
+
+## 🛠️ Training & Model Tools
+
+### Test the Model on Images:
 ```bash
 python training/test.py
 ```
-*(Tryck mellanslag för nästa bild, 'q' för att avsluta)*
+*(Press Space/Enter for next image, 'q' or ESC to exit)*
 
-### Extrahera bildrutor ur en video:
+### Extract Video Frames for Training:
 ```bash
 python training/video2image.py
 ```
 
-### Träna en ny modell:
-Placera bilder och annoteringar i `dataset/train` och `dataset/valid`, kör sedan:
+### Train a New YOLO11 Model:
+Place images and annotations in `dataset/train` and `dataset/valid`, then run:
 ```bash
 python training/train.py
 ```
-*(Vid avslutad träning kopieras bästa vikterna automatiskt till `models/yolo11m_blackjack_1280.pt`)*
-
+*(When training finishes, the best weights are automatically copied to `models/yolo11m_blackjack_1280.pt`)*

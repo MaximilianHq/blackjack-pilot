@@ -7,21 +7,20 @@ from tkinter import filedialog
 import cv2
 
 # ==============================================================================
-# ⚙️ INSTÄLLNINGAR & VARIABLER
+# SETTINGS & CONFIGURATION
 # ==============================================================================
-SECONDS_BETWEEN_FRAMES = 30  # Hur många sekunder mellan varje sparad bildruta
-IMAGE_FORMAT = "png"  # Bildformat: 'png' eller 'jpg'
+SECONDS_BETWEEN_FRAMES = 30  # Seconds between each extracted frame
+IMAGE_FORMAT = "png"  # Image format: 'png' or 'jpg'
 AUTO_CONTINUE_INDEX = (
-    True  # True = fortsätt numrering (överskrivningsskydd), False = börja på 1
+    True  # True = continue numbering (overwrite protection), False = start at 1
 )
-USE_FILE_PICKER = True  # True = öppna filväljare (Ctrl-klick för flera), False = använd SPECIFIC_VIDEOS nedan
-
+USE_FILE_PICKER = True  # True = open file dialog (Ctrl-click for multi-select), False = use SPECIFIC_VIDEOS
 SPECIFIC_VIDEOS = []
 # ==============================================================================
 
 
 def get_next_frame_index(folder, ext):
-    """Hittar nästa lediga siffernummer så inga befintliga bilder skrivs över."""
+    """Finds the next available index so existing images are not overwritten."""
     existing_files = glob.glob(os.path.join(folder, f"frame_*.{ext}"))
     if not existing_files:
         return 1
@@ -37,17 +36,17 @@ def get_next_frame_index(folder, ext):
 
 
 def pick_videos_gui():
-    """Öppnar en Windows-fildialog för att välja en eller flera videor."""
+    """Opens a file dialog to select one or more videos."""
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
 
-    print("Öppnar fildialog... Välj dina videor (håll in Ctrl för att markera flera):")
+    print("Opening file dialog... Select your videos (hold Ctrl to select multiple):")
     files = filedialog.askopenfilenames(
-        title="Välj videor att extrahera ifrån (håll in Ctrl för flera)",
+        title="Select videos to extract from (hold Ctrl for multiple)",
         filetypes=[
-            ("Videofiler", "*.mp4 *.mkv *.avi *.mov *.wmv *.webm *.ts"),
-            ("Alla filer", "*.*"),
+            ("Video files", "*.mp4 *.mkv *.avi *.mov *.wmv *.webm *.ts"),
+            ("All files", "*.*"),
         ],
     )
     root.destroy()
@@ -55,10 +54,10 @@ def pick_videos_gui():
 
 
 def extract_from_video(video_path, output_dir, start_idx, interval_sec, ext):
-    """Extraherar bilder från en enskild video med specificerat intervall."""
+    """Extracts frames from a single video at the specified interval."""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print(f"[FEL] Kunde inte öppna videon: {video_path}")
+        print(f"[ERROR] Could not open video: {video_path}")
         return start_idx, 0
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -86,12 +85,12 @@ def extract_from_video(video_path, output_dir, start_idx, interval_sec, ext):
             sec = frame_no / fps
             filename = f"frame_{curr_idx:04d}.{ext}"
             cv2.imwrite(os.path.join(output_dir, filename), frame)
-            print(f" -> {filename} sparad vid {sec/60:.1f} min ({sec:.1f}s)")
+            print(f" -> {filename} saved at {sec/60:.1f} min ({sec:.1f}s)")
             curr_idx += 1
             saved += 1
 
     cap.release()
-    print(f"Klar med denna video! Sparade {saved} st nya bilder.")
+    print(f"Finished processing video! Saved {saved} new frames.")
     return curr_idx, saved
 
 
@@ -100,29 +99,29 @@ def main():
     output_dir = os.path.join(script_dir, "raw_images")
     os.makedirs(output_dir, exist_ok=True)
 
-    # 1. Hämta videor
+    # 1. Retrieve videos
     if USE_FILE_PICKER:
         videos = pick_videos_gui()
     else:
         videos = [v for v in SPECIFIC_VIDEOS if os.path.exists(v)]
 
-    # Fallback: sök i mappen
+    # Search directory if none selected
     if not videos:
-        print("Inga videofiler valda. Söker efter .mp4-filer i mappen...")
+        print("No video files selected. Searching for .mp4 files in directory...")
         videos = glob.glob(os.path.join(script_dir, "*.mp4"))
         if not videos:
-            print("Inga videor hittades. Avslutar.")
+            print("No videos found. Exiting.")
             return
 
-    # 2. Räkna ut start-siffra
+    # 2. Determine start index
     if AUTO_CONTINUE_INDEX:
         next_num = get_next_frame_index(output_dir, IMAGE_FORMAT)
     else:
         next_num = 1
 
-    print(f"\nAntal videor att bearbeta: {len(videos)} st")
-    print(f"Intervall: En bild var {SECONDS_BETWEEN_FRAMES}:e sekund")
-    print(f"Numreringen börjar på: frame_{next_num:04d}.{IMAGE_FORMAT}")
+    print(f"\nVideos to process: {len(videos)}")
+    print(f"Interval: One frame every {SECONDS_BETWEEN_FRAMES} seconds")
+    print(f"Numbering starts at: frame_{next_num:04d}.{IMAGE_FORMAT}")
 
     total_new = 0
     for v_path in videos:
@@ -136,10 +135,10 @@ def main():
         total_new += saved
 
     print("\n" + "=" * 55)
-    print("--- ALLT KLART! ---")
-    print(f"Totalt antal nya bilder: {total_new} st")
-    print(f"Totalt i mappen:         {next_num - 1} st")
-    print(f"Plats: {output_dir}")
+    print("--- ALL DONE! ---")
+    print(f"Total new frames:    {total_new}")
+    print(f"Total in directory:  {next_num - 1}")
+    print(f"Output directory:    {output_dir}")
     print("=" * 55)
 
 

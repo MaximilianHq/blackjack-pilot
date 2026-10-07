@@ -58,7 +58,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# Importera strategi och räknare
+# Import strategy, card counter, and statistics tracker
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
@@ -70,11 +70,11 @@ from round_stats import RoundStats
 
 
 def map_card_value(raw_label):
-    """Konverterar modell-etiketter (t.ex. 10, A, K, Q, J, 2-9, eller 10H) till Blackjack-valörer."""
+    """Converts model labels (e.g. 10, A, K, Q, J, 2-9, or 10H) to Blackjack values."""
     lbl = str(raw_label).upper().strip()
     if lbl in ["BACK", "FACEDOWN", "HIDDEN", "B", "CARD"]:
         return "B"
-    # Ta bort svit om den finns i etiketten (t.ex. 10C -> 10, AH -> A)
+    # Remove suit suffix if present (e.g. 10C -> 10, AH -> A)
     for s in ["S", "H", "D", "C"]:
         if lbl.endswith(s) and len(lbl) > 1:
             lbl = lbl[:-1]
@@ -90,7 +90,7 @@ def map_card_value(raw_label):
 
 
 def calculate_hand_value(cards):
-    """Beräknar handens total och om den är soft (innehåller aktivt ess)."""
+    """Calculates hand total and whether the hand is soft (contains an active Ace counted as 11)."""
     valid = [c for c in cards if c != "B"]
     if not valid:
         return 0, False
@@ -115,18 +115,18 @@ def calculate_hand_value(cards):
 
 
 def format_hand_text(cards):
-    """Formaterar kortlista och summa till snygg text."""
+    """Formats list of cards and evaluated total into readable display strings."""
     if not cards:
-        return "-", "Inga kort"
+        return "-", "No cards"
     valid = [c for c in cards if c != "B"]
     has_hidden = "B" in cards
     cards_str = ", ".join(str(c) for c in cards)
     if not valid:
-        return f"[{cards_str}]", "Dolt kort"
+        return f"[{cards_str}]", "Hidden card"
 
     total, is_soft = calculate_hand_value(cards)
     if total > 21:
-        sum_str = f"Tjock ({total})"
+        sum_str = f"Bust ({total})"
     elif total == 21 and len(valid) == 2 and not has_hidden:
         sum_str = "Blackjack! (21)"
     elif is_soft:
@@ -135,31 +135,31 @@ def format_hand_text(cards):
         sum_str = f"{total}"
 
     if has_hidden:
-        sum_str += " + dolt"
+        sum_str += " + hidden"
 
     return f"[{cards_str}]", sum_str
 
 
 class ModelEngine:
-    """Hanterar laddning och inferens med YOLO-modeller."""
+    """Manages YOLO model loading and inference."""
 
     def __init__(self):
         self.models = {}
         self.active_model_name = ""
         self.active_model = None
 
-        # Modellsökvägar – Förtränad 1280p YOLO11 modell i models/
+        # Model paths - pre-trained 1280p YOLO11 model in models/
         self.model_paths = {
-            "YOLO11m Blackjack 1280p (Standard)": os.path.join(
+            "YOLO11m Blackjack 1280p (Default)": os.path.join(
                 BASE_DIR, "models", "yolo11m_blackjack_1280.pt"
             ),
         }
-        # Upptäck automatiskt ytterligare .pt modeller i models/
+        # Automatically detect additional .pt models in models/
         models_dir = os.path.join(BASE_DIR, "models")
         if os.path.exists(models_dir):
             for f in sorted(os.listdir(models_dir)):
                 if f.endswith(".pt") and f != "yolo11m_blackjack_1280.pt":
-                    label = f"Modell ({f})"
+                    label = f"Model ({f})"
                     self.model_paths[label] = os.path.join(models_dir, f)
 
     def load_model(self, name):
@@ -168,15 +168,15 @@ class ModelEngine:
         if name in self.models:
             self.active_model = self.models[name]
             self.active_model_name = name
-            return True, f"Aktiv: {name}"
+            return True, f"Active: {name}"
 
         path = self.model_paths.get(name, "")
         if os.path.exists(path):
             try:
-                print(f"[ModelEngine] Laddar {name} från {path}...")
+                print(f"[ModelEngine] Loading {name} from {path}...")
                 m = YOLO(path)
                 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-                print(f"[ModelEngine] Enhet vald: {device}")
+                print(f"[ModelEngine] Device selected: {device}")
                 self.models[name] = m
                 self.active_model = m
                 self.active_model_name = name
@@ -185,20 +185,26 @@ class ModelEngine:
                     if torch.cuda.is_available()
                     else "CPU"
                 )
-                return True, f"Aktiv ({dev_name})"
-            except (FileNotFoundError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                print(f"[ModelEngine] Fel vid laddning av {name}: {exc}")
-                return False, f"Fel: {exc}"
+                return True, f"Active ({dev_name})"
+            except (
+                FileNotFoundError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                print(f"[ModelEngine] Error loading {name}: {exc}")
+                return False, f"Error: {exc}"
         else:
-            print(f"[ModelEngine] Fil saknas: {path}")
-            return False, "Modellfil saknas"
+            print(f"[ModelEngine] File missing: {path}")
+            return False, "Model file missing"
 
 
 class CaptureWorker(QThread):
     """
-    Bakgrundstråd som tar skärmdump av HELA videofeeden,
-    kör YOLO-inferens en gång, och sorterar ut kort som ligger
-    i dealer-zonen respektive spelar-zonen.
+    Background worker thread that grabs screen frames of the master video feed,
+    executes YOLO inference once per frame, and categorizes cards located in the
+    dealer zone, player zone, and table area.
     """
 
     frame_ready = Signal(dict)
@@ -209,8 +215,8 @@ class CaptureWorker(QThread):
         self.running = True
 
         self.feed_bbox = None  # {'top': int, 'left': int, 'width': int, 'height': int}
-        self.dealer_zone = None  # (dx1, dy1, dx2, dy2) i feed-koordinater
-        self.player_zone = None  # (px1, py1, px2, py2) i feed-koordinater
+        self.dealer_zone = None  # (dx1, dy1, dx2, dy2) in feed coordinates
+        self.player_zone = None  # (px1, py1, px2, py2) in feed coordinates
 
         self.conf_thresh = 0.35
         self.iou_thresh = 0.5
@@ -237,7 +243,7 @@ class CaptureWorker(QThread):
         self.wait(1000)
 
     def _in_zone(self, box, zone):
-        """Kontrollerar om ett korts bounding box tillhör den angivna zonen."""
+        """Checks if a card's bounding box belongs to the designated zone."""
         if not zone:
             return False
         zx1, zy1, zx2, zy2 = zone
@@ -245,11 +251,11 @@ class CaptureWorker(QThread):
         cx = (x1 + x2) // 2
         cy = (y1 + y2) // 2
 
-        # 1. Kolla om mittpunkten är inuti zonen
+        # 1. Check if center point lies inside zone
         if zx1 <= cx <= zx2 and zy1 <= cy <= zy2:
             return True
 
-        # 2. Kolla areagrad av överlapp (minst 30% av kortet i zonen)
+        # 2. Check area overlap fraction (at least 30% of card inside zone)
         ox1 = max(x1, zx1)
         oy1 = max(y1, zy1)
         ox2 = min(x2, zx2)
@@ -262,7 +268,7 @@ class CaptureWorker(QThread):
         return False
 
     def _draw_zone_overlay(self, img, zone, color_bgr, label):
-        """Ritar en snygg halvgenomskinlig färgmarkering och ram runt zonen."""
+        """Draws a semi-transparent colored overlay and boundary line around a zone."""
         zx1, zy1, zx2, zy2 = zone
         h, w = img.shape[:2]
         zx1 = max(0, min(w - 1, int(zx1)))
@@ -272,15 +278,15 @@ class CaptureWorker(QThread):
         if zx2 <= zx1 or zy2 <= zy1:
             return
 
-        # Halvtransparent bakgrundsfärg
+        # Semi-transparent background
         sub = img[zy1:zy2, zx1:zx2]
         colored = np.full_like(sub, color_bgr, dtype=np.uint8)
         img[zy1:zy2, zx1:zx2] = cv2.addWeighted(colored, 0.12, sub, 0.88, 0)
 
-        # Kantlinje
+        # Border rectangle
         cv2.rectangle(img, (zx1, zy1), (zx2, zy2), color_bgr, 2)
 
-        # Etikett-märke högst upp
+        # Header tag
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
         by1 = max(0, zy1 - th - 8)
         by2 = max(th + 8, zy1)
@@ -297,7 +303,7 @@ class CaptureWorker(QThread):
         )
 
     def _draw_card_box(self, img, box, label, color_bgr):
-        """Ritar en tydlig ram och etikett runt ett detekterat kort."""
+        """Draws a bounding box and label tag around a detected card."""
         x1, y1, x2, y2 = box
         cv2.rectangle(img, (x1, y1), (x2, y2), color_bgr, 2)
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)
@@ -318,14 +324,14 @@ class CaptureWorker(QThread):
     def process_frame(self, img_bgr):
         annotated = img_bgr.copy()
 
-        # 1. Rita de två zonerna om de är satta
+        # 1. Render active zones if defined
         if self.dealer_zone:
             self._draw_zone_overlay(
-                annotated, self.dealer_zone, (0, 185, 255), "DEALER-ZON"
+                annotated, self.dealer_zone, (0, 185, 255), "DEALER ZONE"
             )
         if self.player_zone:
             self._draw_zone_overlay(
-                annotated, self.player_zone, (255, 170, 0), "SPELAR-ZON"
+                annotated, self.player_zone, (255, 170, 0), "PLAYER ZONE"
             )
 
         raw_detections = []
@@ -358,7 +364,7 @@ class CaptureWorker(QThread):
                     }
                 )
 
-        # 2. Fördela detekterade kort på Dealer, Spelare och Övriga bordet
+        # 2. Categorize detected cards into Dealer, Player, and Table
         dealer_cards = []
         player_cards = []
         table_cards = []
@@ -379,16 +385,16 @@ class CaptureWorker(QThread):
             elif in_player:
                 player_cards.append(d)
                 self._draw_card_box(
-                    annotated, box, f"SPELARE: {lbl} ({conf:.0%})", (255, 170, 0)
+                    annotated, box, f"PLAYER: {lbl} ({conf:.0%})", (255, 170, 0)
                 )
             else:
                 table_cards.append(d)
-                # Rita övriga bordskort med diskret grön linje
+                # Render other table cards with clean green outline
                 self._draw_card_box(
                     annotated, box, f"{lbl} ({conf:.0%})", (0, 230, 115)
                 )
 
-        # Sortera korten från vänster till höger på bordet
+        # Sort cards left to right across table
         dealer_cards.sort(key=lambda x: x["bbox"][0])
         player_cards.sort(key=lambda x: x["bbox"][0])
 
@@ -412,12 +418,12 @@ class CaptureWorker(QThread):
                     and self.feed_bbox.get("height", 0) > 40
                 ):
                     img_bgr = None
-                    # Försök först med mss (blixtsnabb direkt GDI)
+                    # First try mss (fast direct GDI capture)
                     try:
                         sct_img = sct.grab(self.feed_bbox)
                         img_bgr = np.array(sct_img)[:, :, :3]
                     except (OSError, TypeError, ValueError):
-                        # Fallback till Qt-screen grab vid multi-monitor med negativa koordinater
+                        # Multi-monitor setup with negative coordinates fallback to Qt screen grab
                         try:
                             screen = QApplication.primaryScreen()
                             pix = screen.grabWindow(
@@ -445,9 +451,9 @@ class CaptureWorker(QThread):
 
 
 class AspectRatioLabel(QLabel):
-    """En QLabel som bibehåller korrekt bildförhållande utan förvrängning."""
+    """A QLabel that maintains correct aspect ratio without image distortion."""
 
-    def __init__(self, placeholder="[ Ingen Videofeed Vald ]"):
+    def __init__(self, placeholder="[ No Video Feed Selected ]"):
         super().__init__()
         self.placeholder = placeholder
         self.setText(placeholder)
@@ -485,8 +491,8 @@ class AspectRatioLabel(QLabel):
 
 class ScreenSnipper(QWidget):
     """
-    Helskärmsverktyg för att markera videofeed eller zoner.
-    Täcker ALLA anslutna bildskärmar och hanterar multi-monitor koordinater korrekt.
+    Fullscreen overlay tool to select video feed or sub-zones.
+    Spans all connected monitors and handles multi-monitor virtual coordinates accurately.
     """
 
     snippet_selected = Signal(dict, str)
@@ -511,7 +517,7 @@ class ScreenSnipper(QWidget):
         self.current_global = None
         self.is_dragging = False
 
-        # Täck ALLA skärmar i den virtuella skärmytan (inkl. negativa koordinater)
+        # Span all screens across the virtual desktop surface (including negative coordinates)
         geo = QRect()
         for screen in QApplication.screens():
             geo = geo.united(screen.geometry())
@@ -552,7 +558,7 @@ class ScreenSnipper(QWidget):
                         "height": h,
                     }
                     print(
-                        f"[ScreenSnipper] Global selection för {self.target_type}: {bbox}"
+                        f"[ScreenSnipper] Global selection for {self.target_type}: {bbox}"
                     )
                     self.snippet_selected.emit(bbox, self.target_type)
 
@@ -566,49 +572,49 @@ class ScreenSnipper(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # 1. Semi-transparent mörk slöja över hela skärmen
+        # 1. Semi-transparent dark overlay across entire desktop
         painter.fillRect(self.rect(), QColor(0, 0, 0, 110))
 
-        # 2. Om användaren drar en rektangel, skär ut det markerade området
+        # 2. When dragging a rectangle, cut out clear selection region
         if self.is_dragging and self.start_global and self.current_global:
             p1 = self.mapFromGlobal(self.start_global)
             p2 = self.mapFromGlobal(self.current_global)
             sel_rect = QRect(p1, p2).normalized()
 
-            # Gör det valda området helt genomskinligt så skrivbordet syns skarpt
+            # Render selected cut-out 100% transparent so screen shows sharply underneath
             painter.setCompositionMode(QPainter.CompositionMode_Clear)
             painter.fillRect(sel_rect, Qt.transparent)
             painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
 
-            # Välj kantfärg
+            # Border color according to target type
             if self.target_type == "feed":
-                color = QColor(56, 139, 253)  # Blå för hela feeden
+                color = QColor(56, 139, 253)  # Blue for master feed
             elif self.target_type == "dealer":
-                color = QColor(210, 153, 34)  # Guld för dealern
+                color = QColor(210, 153, 34)  # Gold for dealer zone
             else:
-                color = QColor(56, 189, 248)  # Cyan för spelaren
+                color = QColor(56, 189, 248)  # Cyan for player zone
 
             pen = QPen(color, 3)
             painter.setPen(pen)
             painter.drawRect(sel_rect)
 
-            # Måttetikett
-            dim_text = f"{sel_rect.width()} × {sel_rect.height()}"
+            # Dimensions indicator
+            dim_text = f"{sel_rect.width()} x {sel_rect.height()}"
             painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
             painter.setPen(QColor(255, 255, 255))
             painter.drawText(sel_rect.left() + 6, max(24, sel_rect.top() - 8), dim_text)
 
-        # 3. Instruktionsbanner
+        # 3. Floating instruction banner
         banner_text = (
             self.instruction_text
-            or "Dra en rektangel med musen (Tryck ESC för att avbryta)"
+            or "Drag a rectangle with the mouse (Press ESC to cancel)"
         )
         painter.setFont(QFont("Segoe UI", 13, QFont.Bold))
         fm = painter.fontMetrics()
         tw = fm.horizontalAdvance(banner_text) + 40
         th = 42
 
-        # Centrera bannern på skärmen där muspekaren befinner sig
+        # Center banner on the monitor containing cursor
         cursor_pos = QCursor.pos()
         target_screen = (
             QApplication.screenAt(cursor_pos) or QApplication.primaryScreen()
@@ -620,12 +626,12 @@ class ScreenSnipper(QWidget):
         by = target_screen.geometry().top() + 30
         local_by = self.mapFromGlobal(QPoint(0, by)).y()
 
-        # Banner bakgrund
+        # Banner background
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(22, 27, 34, 235))
         painter.drawRoundedRect(bx, local_by, tw, th, 8, 8)
 
-        # Banner ram
+        # Banner border
         painter.setPen(QPen(QColor(88, 166, 255), 2))
         painter.setBrush(Qt.NoBrush)
         painter.drawRoundedRect(bx, local_by, tw, th, 8, 8)
@@ -638,37 +644,37 @@ class ScreenSnipper(QWidget):
 class ModernBlackjackApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("TheBlackGrok - Blackjack Pro Assistant v2")
+        self.setWindowTitle("Blackjack Pilot - Live Pro Assistant v2")
         self.resize(1260, 860)
         self.setMinimumSize(1020, 720)
 
-        # Logik och motorer
+        # Logic and engines
         self.strategy = BlackjackStrategy()
         self.counter = HiLoCounter(decks=6)
         self.stats = RoundStats()
         self.model_engine = ModelEngine()
 
-        # Koordinater
+        # Coordinates
         self.feed_bbox = None
         self.dealer_zone = None
         self.player_zone = None
 
-        # Arbetstråd
+        # Worker thread
         self.worker = CaptureWorker(self.model_engine)
         self.worker.frame_ready.connect(self.on_frame_ready)
 
-        # Senaste kort
+        # Recent detected cards
         self.last_dealer_cards = []
         self.last_player_cards = []
 
-        # Snipper-verktyg
+        # Snipper overlay
         self.snipper = ScreenSnipper()
         self.snipper.snippet_selected.connect(self.on_snippet_selected)
 
         self.setup_theme()
         self.setup_ui()
 
-        # Initiera modell och starta arbetstråd
+        # Initialize models and start capture thread
         self.init_models()
         self.worker.start()
 
@@ -796,59 +802,59 @@ class ModernBlackjackApp(QMainWindow):
         main_layout.setSpacing(14)
 
         # ========================================================
-        # VÄNSTER PANEL: Master Videofeed + Bordszoner + Handkort
+        # LEFT PANEL: Master Video Feed + Table Zones + Hand Cards
         # ========================================================
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
 
-        # Gruppbox för videofeed
-        feed_group = QGroupBox("Live Videofeed & Bordszoner")
+        # Video feed group
+        feed_group = QGroupBox("Live Video Feed & Table Zones")
         fg_layout = QVBoxLayout(feed_group)
         fg_layout.setSpacing(8)
 
-        # 1. Knappar för att välja Hel Feed och Zoner
+        # 1. Action buttons for Master Feed and Zones
         ctrl_bar = QHBoxLayout()
         ctrl_bar.setSpacing(8)
 
-        self.btn_select_feed = QPushButton("📹 1. Välj Hel Videofeed")
+        self.btn_select_feed = QPushButton("📹 1. Select Full Video Feed")
         self.btn_select_feed.setObjectName("btnFeed")
         self.btn_select_feed.clicked.connect(lambda: self.start_selection("feed"))
         ctrl_bar.addWidget(self.btn_select_feed)
 
-        self.btn_select_dealer = QPushButton("👑 2. Välj Dealer-zon")
+        self.btn_select_dealer = QPushButton("👑 2. Select Dealer Zone")
         self.btn_select_dealer.setObjectName("btnDealerZone")
         self.btn_select_dealer.clicked.connect(lambda: self.start_selection("dealer"))
         ctrl_bar.addWidget(self.btn_select_dealer)
 
-        self.btn_select_player = QPushButton("👤 3. Välj Spelar-zon")
+        self.btn_select_player = QPushButton("👤 3. Select Player Zone")
         self.btn_select_player.setObjectName("btnPlayerZone")
         self.btn_select_player.clicked.connect(lambda: self.start_selection("player"))
         ctrl_bar.addWidget(self.btn_select_player)
 
-        self.btn_reset_zones = QPushButton("↺ Rensa Zoner")
+        self.btn_reset_zones = QPushButton("↺ Clear Zones")
         self.btn_reset_zones.clicked.connect(self.reset_zones)
         ctrl_bar.addWidget(self.btn_reset_zones)
 
         ctrl_bar.addStretch()
         fg_layout.addLayout(ctrl_bar)
 
-        # 2. Status-rad för valda områden
+        # 2. Status indicators for active regions
         status_bar = QHBoxLayout()
         status_bar.setSpacing(16)
 
-        self.lbl_feed_status = QLabel("Feed: Ej vald")
+        self.lbl_feed_status = QLabel("Feed: Not selected")
         self.lbl_feed_status.setStyleSheet("color: #8b949e; font-size: 11px;")
         status_bar.addWidget(self.lbl_feed_status)
 
-        self.lbl_dealer_status = QLabel("Dealer-zon: Ej vald")
+        self.lbl_dealer_status = QLabel("Dealer Zone: Not selected")
         self.lbl_dealer_status.setStyleSheet(
             "color: #d29922; font-size: 11px; font-weight: 500;"
         )
         status_bar.addWidget(self.lbl_dealer_status)
 
-        self.lbl_player_status = QLabel("Spelar-zon: Ej vald")
+        self.lbl_player_status = QLabel("Player Zone: Not selected")
         self.lbl_player_status.setStyleSheet(
             "color: #58a6ff; font-size: 11px; font-weight: 500;"
         )
@@ -857,15 +863,15 @@ class ModernBlackjackApp(QMainWindow):
         status_bar.addStretch()
         fg_layout.addLayout(status_bar)
 
-        # 3. Stor Master Videofeed Visare
+        # 3. Master Video Feed Aspect-Ratio Viewer
         self.preview_master = AspectRatioLabel(
-            "[ Ingen Videofeed Vald - Klicka på '1. Välj Hel Videofeed' ]"
+            "[ No Video Feed Selected - Click '1. Select Full Video Feed' ]"
         )
         fg_layout.addWidget(self.preview_master)
 
         left_layout.addWidget(feed_group, 4)
 
-        # 4. Två moderna kort för Dealer- och Spelar-händer under videon
+        # 4. Hand status cards beneath video feed
         hands_layout = QHBoxLayout()
         hands_layout.setSpacing(12)
 
@@ -881,17 +887,17 @@ class ModernBlackjackApp(QMainWindow):
         """)
         df_layout = QVBoxLayout(dealer_frame)
         df_layout.setSpacing(4)
-        lbl_d_header = QLabel("👑 DEALERNS HAND")
+        lbl_d_header = QLabel("👑 DEALER HAND")
         lbl_d_header.setStyleSheet("color: #e3b341; font-weight: 700; font-size: 12px;")
         df_layout.addWidget(lbl_d_header)
 
-        self.lbl_dealer_cards = QLabel("Kort: -")
+        self.lbl_dealer_cards = QLabel("Cards: -")
         self.lbl_dealer_cards.setStyleSheet(
             "color: #ffffff; font-size: 16px; font-weight: 700;"
         )
         df_layout.addWidget(self.lbl_dealer_cards)
 
-        self.lbl_dealer_sum = QLabel("Summa: -")
+        self.lbl_dealer_sum = QLabel("Total: -")
         self.lbl_dealer_sum.setStyleSheet(
             "color: #d29922; font-size: 13px; font-weight: 600;"
         )
@@ -910,17 +916,17 @@ class ModernBlackjackApp(QMainWindow):
         """)
         pf_layout = QVBoxLayout(player_frame)
         pf_layout.setSpacing(4)
-        lbl_p_header = QLabel("👤 DIN HAND (SPELARE)")
+        lbl_p_header = QLabel("👤 YOUR HAND (PLAYER)")
         lbl_p_header.setStyleSheet("color: #58a6ff; font-weight: 700; font-size: 12px;")
         pf_layout.addWidget(lbl_p_header)
 
-        self.lbl_player_cards = QLabel("Kort: -")
+        self.lbl_player_cards = QLabel("Cards: -")
         self.lbl_player_cards.setStyleSheet(
             "color: #ffffff; font-size: 16px; font-weight: 700;"
         )
         pf_layout.addWidget(self.lbl_player_cards)
 
-        self.lbl_player_sum = QLabel("Summa: -")
+        self.lbl_player_sum = QLabel("Total: -")
         self.lbl_player_sum.setStyleSheet(
             "color: #58a6ff; font-size: 13px; font-weight: 600;"
         )
@@ -931,15 +937,15 @@ class ModernBlackjackApp(QMainWindow):
         main_layout.addWidget(left_panel, 3)
 
         # ========================================================
-        # HÖGER PANEL: AI Kontroller, Optimal Strategi & Statistik
+        # RIGHT PANEL: AI Controls, Optimal Strategy & Statistics
         # ========================================================
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(12)
 
-        # 1. AI Modellval
-        model_group = QGroupBox("AI Modellval")
+        # 1. AI Model Selection
+        model_group = QGroupBox("AI Model Selection")
         mg_layout = QVBoxLayout(model_group)
         self.combo_model = QComboBox()
         for name in self.model_engine.model_paths:
@@ -947,13 +953,13 @@ class ModernBlackjackApp(QMainWindow):
         self.combo_model.currentTextChanged.connect(self.on_model_changed)
         mg_layout.addWidget(self.combo_model)
 
-        self.lbl_model_status = QLabel("Status: Initierar...")
+        self.lbl_model_status = QLabel("Status: Initializing...")
         self.lbl_model_status.setStyleSheet("color: #3fb950; font-size: 12px;")
         mg_layout.addWidget(self.lbl_model_status)
         right_layout.addWidget(model_group)
 
-        # 2. Detekteringskänslighet
-        sens_group = QGroupBox("Detekteringskänslighet")
+        # 2. Detection Sensitivity Controls
+        sens_group = QGroupBox("Detection Sensitivity")
         sg_layout = QGridLayout(sens_group)
         sg_layout.setHorizontalSpacing(10)
         sg_layout.setVerticalSpacing(8)
@@ -971,7 +977,7 @@ class ModernBlackjackApp(QMainWindow):
         sg_layout.addWidget(self.lbl_conf_val, 0, 2)
 
         # NMS / Overlap Slider
-        sg_layout.addWidget(QLabel("Överlappning (IoU):"), 1, 0)
+        sg_layout.addWidget(QLabel("Overlap (IoU):"), 1, 0)
         self.slider_iou = QSlider(Qt.Horizontal)
         self.slider_iou.setRange(20, 80)
         self.slider_iou.setValue(50)
@@ -984,10 +990,10 @@ class ModernBlackjackApp(QMainWindow):
 
         right_layout.addWidget(sens_group)
 
-        # 3. Optimalt Drag (Basic Strategy)
-        strat_group = QGroupBox("Optimalt Speldrag (Basic Strategy)")
+        # 3. Optimal Move (Basic Strategy)
+        strat_group = QGroupBox("Optimal Move (Basic Strategy)")
         str_layout = QVBoxLayout(strat_group)
-        self.lbl_optimal_move = QLabel("Inväntar kort...")
+        self.lbl_optimal_move = QLabel("Waiting for cards...")
         self.lbl_optimal_move.setAlignment(Qt.AlignCenter)
         self.lbl_optimal_move.setStyleSheet("""
             background-color: #161b22;
@@ -1001,8 +1007,8 @@ class ModernBlackjackApp(QMainWindow):
         str_layout.addWidget(self.lbl_optimal_move)
         right_layout.addWidget(strat_group)
 
-        # 4. Hi-Lo Korträknare
-        count_group = QGroupBox("Hi-Lo Korträknare")
+        # 4. Hi-Lo Card Counter
+        count_group = QGroupBox("Hi-Lo Card Counter")
         cg_layout = QVBoxLayout(count_group)
 
         self.lbl_hilo_readout = QLabel("Running Count: +0   |   True Count: +0.0")
@@ -1018,22 +1024,22 @@ class ModernBlackjackApp(QMainWindow):
         cg_layout.addWidget(self.lbl_hilo_readout)
 
         c_ctrl = QHBoxLayout()
-        c_ctrl.addWidget(QLabel("Lekar kvar:"))
+        c_ctrl.addWidget(QLabel("Decks remaining:"))
         self.spin_decks = QSpinBox()
         self.spin_decks.setRange(1, 8)
         self.spin_decks.setValue(6)
         self.spin_decks.valueChanged.connect(self.on_decks_changed)
         c_ctrl.addWidget(self.spin_decks)
 
-        btn_reset_count = QPushButton("Återställ Räknare")
+        btn_reset_count = QPushButton("Reset Counter")
         btn_reset_count.clicked.connect(self.reset_count)
         c_ctrl.addWidget(btn_reset_count)
         cg_layout.addLayout(c_ctrl)
 
         right_layout.addWidget(count_group)
 
-        # 5. Runda & Session Statistik
-        stats_group = QGroupBox("Session Statistik")
+        # 5. Round & Session Statistics
+        stats_group = QGroupBox("Session Statistics")
         st_layout = QVBoxLayout(stats_group)
         self.lbl_stats_summary = QLabel(self.stats.summary())
         self.lbl_stats_summary.setStyleSheet(
@@ -1041,7 +1047,7 @@ class ModernBlackjackApp(QMainWindow):
         )
         st_layout.addWidget(self.lbl_stats_summary)
 
-        btn_reset_stats = QPushButton("Nollställ Statistik")
+        btn_reset_stats = QPushButton("Reset Statistics")
         btn_reset_stats.clicked.connect(self.reset_stats)
         st_layout.addWidget(btn_reset_stats)
 
@@ -1051,7 +1057,7 @@ class ModernBlackjackApp(QMainWindow):
         main_layout.addWidget(right_panel, 2)
 
     def init_models(self):
-        """Laddar förstavalsmodellen (vår nya tränade v2 modell)."""
+        """Loads default trained model."""
         names = list(self.model_engine.model_paths.keys())
         loaded = False
         for n in names:
@@ -1066,7 +1072,7 @@ class ModernBlackjackApp(QMainWindow):
                     loaded = True
                     break
         if not loaded:
-            self.lbl_model_status.setText("Ingen modellfil hittades!")
+            self.lbl_model_status.setText("No model file found!")
             self.lbl_model_status.setStyleSheet("color: #f85149; font-weight: 600;")
 
     def on_model_changed(self, name):
@@ -1075,7 +1081,7 @@ class ModernBlackjackApp(QMainWindow):
             self.lbl_model_status.setText(msg)
             self.lbl_model_status.setStyleSheet("color: #3fb950; font-weight: 600;")
         else:
-            self.lbl_model_status.setText(f"Fel: {msg}")
+            self.lbl_model_status.setText(f"Error: {msg}")
             self.lbl_model_status.setStyleSheet("color: #f85149; font-weight: 600;")
 
     def on_threshold_changed(self):
@@ -1089,34 +1095,34 @@ class ModernBlackjackApp(QMainWindow):
         if target_type in ["dealer", "player"] and self.feed_bbox is None:
             QMessageBox.information(
                 self,
-                "Välj Videofeed Först",
-                "Vänligen välj hel videofeed först (Steg 1) så att zonen kan placeras inuti videon.",
+                "Select Video Feed First",
+                "Please select the full video feed first (Step 1) so zones can be positioned inside the feed.",
             )
             return
 
         prompts = {
-            "feed": "Steg 1: Dra en rektangel runt HELA videofeeden / bordet (Tryck ESC för att avbryta)",
-            "dealer": "Steg 2: Dra en rektangel runt DEALERNS kortområde (Tryck ESC för att avbryta)",
-            "player": "Steg 3: Dra en rektangel runt SPELARENS (dina) kortområde (Tryck ESC för att avbryta)",
+            "feed": "Step 1: Drag a rectangle around the ENTIRE video feed / table (Press ESC to cancel)",
+            "dealer": "Step 2: Drag a rectangle around the DEALER card area (Press ESC to cancel)",
+            "player": "Step 3: Drag a rectangle around the PLAYER (your) card area (Press ESC to cancel)",
         }
         self.snipper.start(target_type, prompts.get(target_type, ""))
 
     def on_snippet_selected(self, bbox, target_type):
-        print(f"[Selection] Mottog {target_type}: {bbox}")
+        print(f"[Selection] Received {target_type}: {bbox}")
         if target_type == "feed":
             self.feed_bbox = bbox
             self.worker.set_feed_bbox(bbox)
             self.lbl_feed_status.setText(
-                f"Feed: {bbox['width']}x{bbox['height']} vid ({bbox['left']}, {bbox['top']})"
+                f"Feed: {bbox['width']}x{bbox['height']} at ({bbox['left']}, {bbox['top']})"
             )
             self.lbl_feed_status.setStyleSheet(
                 "color: #3fb950; font-size: 11px; font-weight: 600;"
             )
-            # Rensa eventuella gamla zoner när ny feed väljs
+            # Clear old sub-zones whenever a new master feed is chosen
             self.reset_zones()
         elif target_type == "dealer":
             if self.feed_bbox:
-                # Beräkna koordinater relativt till master feeden
+                # Compute coordinates relative to master feed
                 dx1 = max(0, bbox["left"] - self.feed_bbox["left"])
                 dy1 = max(0, bbox["top"] - self.feed_bbox["top"])
                 dx2 = min(self.feed_bbox["width"], dx1 + bbox["width"])
@@ -1125,14 +1131,14 @@ class ModernBlackjackApp(QMainWindow):
                     self.dealer_zone = (dx1, dy1, dx2, dy2)
                     self.worker.set_dealer_zone(self.dealer_zone)
                     self.lbl_dealer_status.setText(
-                        f"Dealer-zon: Aktiv ({dx2 - dx1}x{dy2 - dy1})"
+                        f"Dealer Zone: Active ({dx2 - dx1}x{dy2 - dy1})"
                     )
                     self.lbl_dealer_status.setStyleSheet(
                         "color: #3fb950; font-size: 11px; font-weight: 600;"
                     )
         elif target_type == "player":
             if self.feed_bbox:
-                # Beräkna koordinater relativt till master feeden
+                # Compute coordinates relative to master feed
                 px1 = max(0, bbox["left"] - self.feed_bbox["left"])
                 py1 = max(0, bbox["top"] - self.feed_bbox["top"])
                 px2 = min(self.feed_bbox["width"], px1 + bbox["width"])
@@ -1141,7 +1147,7 @@ class ModernBlackjackApp(QMainWindow):
                     self.player_zone = (px1, py1, px2, py2)
                     self.worker.set_player_zone(self.player_zone)
                     self.lbl_player_status.setText(
-                        f"Spelar-zon: Aktiv ({px2 - px1}x{py2 - py1})"
+                        f"Player Zone: Active ({px2 - px1}x{py2 - py1})"
                     )
                     self.lbl_player_status.setStyleSheet(
                         "color: #3fb950; font-size: 11px; font-weight: 600;"
@@ -1151,23 +1157,23 @@ class ModernBlackjackApp(QMainWindow):
         self.dealer_zone = None
         self.player_zone = None
         self.worker.clear_zones()
-        self.lbl_dealer_status.setText("Dealer-zon: Ej vald")
+        self.lbl_dealer_status.setText("Dealer Zone: Not selected")
         self.lbl_dealer_status.setStyleSheet(
             "color: #d29922; font-size: 11px; font-weight: 500;"
         )
-        self.lbl_player_status.setText("Spelar-zon: Ej vald")
+        self.lbl_player_status.setText("Player Zone: Not selected")
         self.lbl_player_status.setStyleSheet(
             "color: #58a6ff; font-size: 11px; font-weight: 500;"
         )
 
     @Slot(dict)
     def on_frame_ready(self, result):
-        # 1. Uppdatera master videofeed
+        # 1. Update master video feed preview
         annotated_img = result.get("image")
         if annotated_img is not None:
             self.preview_master.set_image(annotated_img)
 
-        # 2. Uppdatera händer
+        # 2. Update player & dealer hands
         dealer_cards = result.get("dealer_cards", [])
         player_cards = result.get("player_cards", [])
         all_cards = result.get("all_cards", [])
@@ -1175,24 +1181,24 @@ class ModernBlackjackApp(QMainWindow):
         self.last_dealer_cards = dealer_cards
         self.last_player_cards = player_cards
 
-        # Formatera text och summor
+        # Format display text and evaluated sums
         d_cards_txt, d_sum_txt = format_hand_text(dealer_cards)
         p_cards_txt, p_sum_txt = format_hand_text(player_cards)
 
-        self.lbl_dealer_cards.setText(f"Kort: {d_cards_txt}")
-        self.lbl_dealer_sum.setText(f"Summa: {d_sum_txt}")
+        self.lbl_dealer_cards.setText(f"Cards: {d_cards_txt}")
+        self.lbl_dealer_sum.setText(f"Total: {d_sum_txt}")
 
-        self.lbl_player_cards.setText(f"Kort: {p_cards_txt}")
-        self.lbl_player_sum.setText(f"Summa: {p_sum_txt}")
+        self.lbl_player_cards.setText(f"Cards: {p_cards_txt}")
+        self.lbl_player_sum.setText(f"Total: {p_sum_txt}")
 
-        # 3. Uppdatera Hi-Lo korträknare med alla bordskort
+        # 3. Update Hi-Lo card counter with all detected table cards
         try:
             self.counter.update_table(all_cards)
             self.update_counter_ui()
         except (AttributeError, KeyError, TypeError, ValueError) as exc:
             print(f"[Counter Error]: {exc}")
 
-        # 4. Uppdatera strategi och runda
+        # 4. Update basic strategy recommendation and round evaluation
         try:
             self.update_game_decision()
         except (AttributeError, KeyError, TypeError, ValueError) as exc:
@@ -1202,7 +1208,7 @@ class ModernBlackjackApp(QMainWindow):
         valid_dealer = [c for c in self.last_dealer_cards if c != "B"]
         valid_player = [c for c in self.last_player_cards if c != "B"]
 
-        # Kolla runda-status (Blackjack, Push, Bust, Win/Lose etc.)
+        # Evaluate round status (Blackjack, Push, Bust, Win/Lose, etc.)
         round_state, _ = self.strategy.evaluate_round(
             self.last_player_cards, self.last_dealer_cards
         )
@@ -1211,7 +1217,7 @@ class ModernBlackjackApp(QMainWindow):
             self.lbl_stats_summary.setText(self.stats.summary())
 
         if not valid_player:
-            self.lbl_optimal_move.setText("Inväntar kort...")
+            self.lbl_optimal_move.setText("Waiting for cards...")
             self.lbl_optimal_move.setStyleSheet("""
                 background-color: #161b22;
                 border: 2px solid #30363d;
@@ -1226,7 +1232,7 @@ class ModernBlackjackApp(QMainWindow):
         if len(valid_player) < 2:
             p_first = valid_player[0] if valid_player else "-"
             self.lbl_optimal_move.setText(
-                f"Spelare: [{p_first}]\n(Inväntar 2:a kortet...)"
+                f"Player: [{p_first}]\n(Waiting for 2nd card...)"
             )
             self.lbl_optimal_move.setStyleSheet("""
                 background-color: #161b22;
@@ -1242,26 +1248,26 @@ class ModernBlackjackApp(QMainWindow):
         dealer_up = valid_dealer[0] if valid_dealer else 10
         move_code, instruction = self.strategy.get_best_move(valid_player, dealer_up)
 
-        # Kontrollera eventuella Illustrious 18 avvikelser
+        # Check Illustrious 18 count-based deviations
         tc = self.counter.true_count
         hints = self.strategy.get_count_hints(valid_player, dealer_up, tc)
 
-        # Färgsättning baserat på rekommendation
+        # Recommendation badge coloring
         color = "#58a6ff"
         if "Hit" in instruction or move_code == "H":
-            color = "#3fb950"  # Grön
+            color = "#3fb950"  # Green
         elif "Stand" in instruction or move_code == "S":
-            color = "#f85149"  # Röd
+            color = "#f85149"  # Red
         elif "Double" in instruction or move_code.startswith("D"):
-            color = "#d29922"  # Guld
+            color = "#d29922"  # Gold
         elif "Split" in instruction or move_code.startswith("Y"):
-            color = "#bc8cff"  # Lila
+            color = "#bc8cff"  # Purple
         elif "Surrender" in instruction or move_code.startswith("SUR"):
-            color = "#ff7b72"  # Rosa/Röd
+            color = "#ff7b72"  # Pink/Red
 
         display_text = instruction.upper()
         if not valid_dealer:
-            display_text += "\n(Obs: Dealerkort ej synligt, antar 10)"
+            display_text += "\n(Note: Dealer card not visible, assuming 10)"
         if hints:
             display_text += f"\n⚡ {hints[0][1]}"
 
@@ -1291,7 +1297,7 @@ class ModernBlackjackApp(QMainWindow):
         sign_rc = f"+{rc}" if rc >= 0 else f"{rc}"
         sign_tc = f"+{tc:.1f}" if tc >= 0 else f"{tc:.1f}"
         self.lbl_hilo_readout.setText(
-            f"Running Count: {sign_rc}   |   True Count: {sign_tc}   (Bordskort sedda: {seen})"
+            f"Running Count: {sign_rc}   |   True Count: {sign_tc}   (Table cards seen: {seen})"
         )
 
     def reset_stats(self):
