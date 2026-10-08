@@ -31,12 +31,12 @@ def start_server():
             "port": PORT,
         }
 
-    start_bat = os.path.join(PROJECT_DIR, "start_server.bat")
-    if os.path.exists(start_bat):
-        cmd = f'cmd.exe /c start "Blackjack Pilot AI Server" "{start_bat}"'
+    python_exe = sys.executable
+    exe_path = os.path.join(PROJECT_DIR, "dist", "BlackjackPilotServer", "BlackjackPilotServer.exe")
+    if os.path.exists(exe_path):
+        cmd = f'start "Blackjack Pilot AI Server" cmd.exe /k ""{exe_path}""'
     else:
-        python_exe = sys.executable
-        cmd = f'cmd.exe /c start "Blackjack Pilot AI Server" "{python_exe}" -u "{SERVER_SCRIPT}"'
+        cmd = f'start "Blackjack Pilot AI Server" cmd.exe /k ""{python_exe}" -u "{SERVER_SCRIPT}""'
 
     proc = subprocess.Popen(
         cmd,

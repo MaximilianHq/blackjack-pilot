@@ -17,9 +17,17 @@ import torch
 import websockets
 from ultralytics import YOLO
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    EXE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    EXE_DIR = BASE_DIR
+
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
+if EXE_DIR not in sys.path:
+    sys.path.append(EXE_DIR)
 
 from blackjack_strategy import BlackjackStrategy
 from card_counter import HiLoCounter
@@ -237,21 +245,24 @@ class BlackjackEngine:
         self.tracker = CardTracker(max_missed=3, iou_thresh=0.30)
 
         # Load trained blackjack model from models/
-        model_path = os.path.join(BASE_DIR, "models", "yolo11m_blackjack_v1.pt")
+        model_path = os.path.join(EXE_DIR, "models", "yolo11m_blackjack_v1.pt")
         if not os.path.exists(model_path):
-            # Look for any custom trained .pt file in models/
-            models_dir = os.path.join(BASE_DIR, "models")
-            candidates = [
-                os.path.join(models_dir, f)
-                for f in sorted(os.listdir(models_dir))
-                if f.endswith(".pt")
-            ]
-            if candidates:
-                model_path = candidates[0]
-            else:
-                raise FileNotFoundError(
-                    f"No trained blackjack model found in {models_dir}!"
-                )
+            model_path = os.path.join(BASE_DIR, "models", "yolo11m_blackjack_v1.pt")
+        if not os.path.exists(model_path):
+            for m_dir in [os.path.join(EXE_DIR, "models"), os.path.join(BASE_DIR, "models")]:
+                if os.path.exists(m_dir):
+                    candidates = [
+                        os.path.join(m_dir, f)
+                        for f in sorted(os.listdir(m_dir))
+                        if f.endswith(".pt")
+                    ]
+                    if candidates:
+                        model_path = candidates[0]
+                        break
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"No trained blackjack model found! Searched: {EXE_DIR}/models and {BASE_DIR}/models"
+            )
 
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         print(f"[Engine] Loading YOLO model: {model_path} on {device}...")
