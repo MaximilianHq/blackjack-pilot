@@ -1,0 +1,281 @@
+/* Blackjack Pilot - Popup Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  width: 320px;
+  background-color: #0d1117;
+  color: #e6edf3;
+  font-size: 13px;
+  user-select: none;
+}
+
+.popup-container {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid #30363d;
+  padding-bottom: 10px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  font-size: 18px;
+}
+
+h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #58a6ff;
+  flex: 1;
+}
+
+.badge {
+  background-color: #1f6feb;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* Status Indicator */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: #161b22;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-indicator.connected .status-dot {
+  background-color: #3fb950;
+  box-shadow: 0 0 6px #3fb950;
+}
+
+.status-indicator.connected {
+  color: #3fb950;
+}
+
+.status-indicator.disconnected .status-dot {
+  background-color: #f85149;
+}
+
+.status-indicator.disconnected {
+  color: #f85149;
+}
+
+/* Sections */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #8b949e;
+  letter-spacing: 0.5px;
+}
+
+/* Buttons */
+.btn {
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.btn-primary {
+  background-color: #238636;
+  border-color: #2ea043;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: #2ea043;
+}
+
+.btn-primary.recording {
+  background-color: #da3633;
+  border-color: #f85149;
+}
+
+.btn-large {
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.btn-secondary {
+  background-color: #21262d;
+  color: #c9d1d9;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+
+.btn-secondary:hover {
+  background-color: #30363d;
+  color: #ffffff;
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: #8b949e;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+.btn-outline:hover {
+  background-color: #21262d;
+  color: #c9d1d9;
+}
+
+.btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* Zone status bar */
+.zone-status-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: #8b949e;
+  background-color: #0d1117;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+/* Controls & Sliders */
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.control-row input[type="range"] {
+  flex: 1;
+  accent-color: #58a6ff;
+  height: 4px;
+  cursor: pointer;
+}
+
+.val-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #58a6ff;
+  width: 32px;
+  text-align: right;
+}
+
+.number-input {
+  width: 50px;
+  background-color: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  color: #e6edf3;
+  padding: 4px 6px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Toggle Switches */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #30363d;
+  transition: 0.2s;
+  border-radius: 20px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #1f6feb;
+}
+
+input:checked + .slider:before {
+  transform: translateX(16px);
+}
+
+/* Action Footer */
+.action-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 8px;
+}
+

@@ -148,17 +148,17 @@ class ModelEngine:
         self.active_model_name = ""
         self.active_model = None
 
-        # Model paths - pre-trained 1280p YOLO11 model in models/
+        # Model paths - pre-trained YOLO11 model in models/
         self.model_paths = {
-            "YOLO11m Blackjack 1280p (Default)": os.path.join(
-                BASE_DIR, "models", "yolo11m_blackjack_1280.pt"
+            "YOLO11m Blackjack v1 (Default)": os.path.join(
+                BASE_DIR, "models", "yolo11m_blackjack_v1.pt"
             ),
         }
         # Automatically detect additional .pt models in models/
         models_dir = os.path.join(BASE_DIR, "models")
         if os.path.exists(models_dir):
             for f in sorted(os.listdir(models_dir)):
-                if f.endswith(".pt") and f != "yolo11m_blackjack_1280.pt":
+                if f.endswith(".pt") and f != "yolo11m_blackjack_v1.pt":
                     label = f"Model ({f})"
                     self.model_paths[label] = os.path.join(models_dir, f)
 

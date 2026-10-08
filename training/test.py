@@ -35,18 +35,29 @@ def pick_folder_gui():
 
 
 def resolve_model(script_dir):
-    """Finds default model in models/ or runs/."""
+    """Finds default trained blackjack model in models/ or runs/."""
     root_dir = os.path.dirname(script_dir)
-    default_model = os.path.join(root_dir, "models", "yolo11m_blackjack_1280.pt")
+    default_model = os.path.join(root_dir, "models", "yolo11m_blackjack_v1.pt")
     if os.path.exists(default_model):
         return default_model
+
+    # Check for any .pt model in models/
+    models_dir = os.path.join(root_dir, "models")
+    if os.path.exists(models_dir):
+        pts = [
+            os.path.join(models_dir, f)
+            for f in os.listdir(models_dir)
+            if f.endswith(".pt")
+        ]
+        if pts:
+            return pts[0]
 
     # Search for best.pt in training runs
     found = glob.glob(os.path.join(script_dir, "runs", "**", "best.pt"), recursive=True)
     if found:
         return found[-1]
 
-    return "yolo11m.pt"
+    raise FileNotFoundError("No trained blackjack model found in models/ or runs/!")
 
 
 def main():

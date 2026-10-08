@@ -1,0 +1,689 @@
+/* Blackjack Pilot - In-Browser HUD, Options Menu & Zone Overlays */
+
+#bjp-root-container {
+  display: block !important;
+  position: static !important;
+  z-index: 2147483640 !important;
+}
+
+/* -------------------------------------------------------------------------
+   1. Floating HUD Window
+   ------------------------------------------------------------------------- */
+#bjp-hud {
+  position: fixed;
+  top: 25px;
+  right: 25px;
+  width: 396px; /* 20% wider for spacious readability */
+  background-color: rgba(13, 17, 23, 0.96);
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: #ffffff !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  z-index: 2147483640;
+  backdrop-filter: blur(14px);
+  user-select: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+#bjp-hud span,
+#bjp-hud label,
+#bjp-hud div,
+#bjp-hud p {
+  color: inherit;
+}
+
+#bjp-hud.bjp-minimized .bjp-body,
+#bjp-hud.bjp-minimized .bjp-options-panel {
+  display: none !important;
+}
+
+#bjp-hud.bjp-hidden {
+  display: none !important;
+}
+
+/* Header */
+.bjp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: rgba(22, 27, 34, 0.95);
+  border-bottom: 1px solid #30363d;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  cursor: grab;
+}
+
+.bjp-header:active {
+  cursor: grabbing;
+}
+
+.bjp-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bjp-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #58a6ff;
+}
+
+.bjp-build-badge-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background-color: rgba(88, 166, 255, 0.16);
+  border: 1px solid rgba(88, 166, 255, 0.45);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.bjp-badge-date {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #ffffff !important; /* Pure white date */
+  letter-spacing: 0.3px;
+}
+
+.bjp-badge-ver {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #79c0ff !important; /* High-contrast bright version */
+}
+
+.bjp-server-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bjp-server-pill.connected {
+  background-color: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+  border: 1px solid #238636;
+}
+
+.bjp-server-pill.disconnected {
+  background-color: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+  border: 1px solid #da3633;
+}
+
+.bjp-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.bjp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bjp-icon-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bjp-icon-btn:hover {
+  background: #30363d;
+  color: #ffffff;
+}
+
+.bjp-icon-btn.active {
+  background: #1f6feb;
+  color: #ffffff;
+}
+
+/* Body */
+.bjp-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Move Banner */
+.bjp-move-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background-color: #161b22;
+  border: 2px solid #58a6ff;
+  border-radius: 10px;
+  text-align: center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.bjp-move-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #ffffff !important; /* Pure white */
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.bjp-move-text {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.bjp-move-hint {
+  font-size: 11px;
+  color: #e3b341;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* Hands Grid */
+.bjp-hands-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.bjp-hand-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bjp-hand-dealer {
+  background-color: #1c1917;
+  border: 1px solid #d29922;
+}
+
+.bjp-hand-dealer .bjp-hand-header {
+  color: #d29922;
+}
+
+.bjp-hand-player {
+  background-color: #0c192c;
+  border: 1px solid #388bfd;
+}
+
+.bjp-hand-player .bjp-hand-header {
+  color: #58a6ff;
+}
+
+.bjp-hand-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bjp-hand-cards {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  min-height: 20px;
+}
+
+.bjp-hand-total {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Card Counting Bar */
+.bjp-count-card {
+  background-color: #121820;
+  border: 1px solid #238636;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bjp-count-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bjp-count-main {
+  font-size: 13px;
+  font-weight: 700;
+  color: #3fb950;
+}
+
+.bjp-count-sub {
+  font-size: 11px;
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+/* Session Stats Bar */
+.bjp-stats-card {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 11px !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  padding: 5px 8px !important;
+  background-color: #161b22 !important;
+  border-radius: 6px !important;
+}
+
+#bjp-hud .bjp-stats-card span,
+.bjp-stats-card span,
+#bjp-winrate,
+#bjp-rounds {
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  transition: color 0.2s ease !important;
+}
+
+/* -------------------------------------------------------------------------
+   2. Options & Controls Panel (Never disappears on outside click)
+   ------------------------------------------------------------------------- */
+.bjp-options-panel {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background-color: #161b22;
+  border-top: 1px solid #30363d;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.bjp-options-panel.open {
+  display: flex;
+}
+
+.bjp-panel-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #ffffff !important;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.bjp-btn {
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  font-size: 12px;
+  user-select: none;
+}
+
+.bjp-btn-primary {
+  background-color: #238636;
+  border-color: #2ea043;
+  color: #ffffff;
+  padding: 9px 12px;
+}
+
+.bjp-btn-primary:hover {
+  background-color: #2ea043;
+}
+
+.bjp-btn-primary.recording {
+  background-color: #da3633;
+  border-color: #f85149;
+}
+
+.bjp-btn-secondary {
+  background-color: #21262d;
+  color: #c9d1d9;
+}
+
+.bjp-btn-secondary:hover {
+  background-color: #30363d;
+  color: #ffffff;
+}
+
+.bjp-btn-reload {
+  background-color: #1f6feb;
+  border-color: #388bfd;
+  color: #ffffff;
+}
+
+.bjp-btn-reload:hover {
+  background-color: #388bfd;
+}
+
+.bjp-sync-info {
+  background-color: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bjp-sync-hint {
+  color: #f0f6fc; /* Bright readable white */
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.bjp-btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.bjp-toggle-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  font-size: 12px !important;
+  color: #ffffff !important;
+  padding: 5px 6px !important;
+  margin: 2px 0 !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  border-radius: 6px !important;
+  transition: background-color 0.15s ease !important;
+}
+
+#bjp-hud .bjp-toggle-row,
+#bjp-hud .bjp-toggle-row span,
+#bjp-hud .bjp-toggle-text,
+.bjp-toggle-row,
+.bjp-toggle-row span,
+.bjp-toggle-text {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.bjp-toggle-row:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Custom Toggle Switch (100% immune to casino page CSS resets) */
+.bjp-switch {
+  position: relative !important;
+  display: inline-block !important;
+  width: 38px !important;
+  height: 20px !important;
+  min-width: 38px !important;
+  min-height: 20px !important;
+  flex-shrink: 0 !important;
+  cursor: pointer !important;
+}
+
+.bjp-switch input {
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  pointer-events: none !important;
+}
+
+.bjp-slider {
+  position: absolute !important;
+  cursor: pointer !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: #30363d !important;
+  transition: 0.2s !important;
+  border-radius: 20px !important;
+  border: 1px solid #484f58 !important;
+  box-sizing: border-box !important;
+}
+
+.bjp-slider:before {
+  position: absolute !important;
+  content: "" !important;
+  height: 12px !important;
+  width: 12px !important;
+  left: 3px !important;
+  bottom: 3px !important;
+  background-color: #8b949e !important;
+  transition: 0.2s !important;
+  border-radius: 50% !important;
+}
+
+.bjp-switch input:checked + .bjp-slider {
+  background-color: #238636 !important;
+  border-color: #2ea043 !important;
+}
+
+.bjp-switch input:checked + .bjp-slider:before {
+  transform: translateX(18px) !important;
+  background-color: #ffffff !important;
+}
+
+.bjp-slider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #ffffff !important;
+}
+
+.bjp-slider-row label {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.bjp-slider-row input[type="range"] {
+  flex: 1;
+  accent-color: #58a6ff;
+  height: 4px;
+  cursor: pointer;
+}
+
+.bjp-val-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: #58a6ff;
+  width: 32px;
+  text-align: right;
+}
+
+.bjp-num-input {
+  width: 50px;
+  background-color: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  color: #ffffff !important;
+  padding: 3px 6px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* -------------------------------------------------------------------------
+   3. Always-Visible 3 Capture Windows (Overlays on Webpage)
+   ------------------------------------------------------------------------- */
+#bjp-zone-overlays {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 2147483630;
+}
+
+.bjp-zone-box {
+  position: fixed;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* Feed Area: Full frame overlay just like before */
+.bjp-zone-feed {
+  border: 2px solid #388bfd !important;
+  background-color: rgba(56, 139, 253, 0.05) !important;
+  box-shadow: 0 0 10px rgba(56, 139, 253, 0.25) !important;
+  border-radius: 4px;
+}
+
+.bjp-zone-tag {
+  position: absolute !important;
+  top: -10px !important;
+  left: 10px !important;
+  padding: 1px 8px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  border-radius: 4px !important;
+  pointer-events: none !important;
+  white-space: nowrap !important;
+}
+
+.bjp-zone-feed .bjp-zone-tag {
+  background-color: #1f6feb !important;
+  color: #ffffff !important;
+}
+
+/* Minimalist Corner Reticles (Only corners, 0 text, 0 background, half length) */
+.bjp-corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.bjp-c-tl {
+  top: 0;
+  left: 0;
+  border-top: 3px solid currentColor;
+  border-left: 3px solid currentColor;
+  border-top-left-radius: 3px;
+}
+
+.bjp-c-tr {
+  top: 0;
+  right: 0;
+  border-top: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+  border-top-right-radius: 3px;
+}
+
+.bjp-c-br {
+  bottom: 0;
+  right: 0;
+  border-bottom: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+  border-bottom-right-radius: 3px;
+}
+
+.bjp-c-bl {
+  bottom: 0;
+  left: 0;
+  border-bottom: 3px solid currentColor;
+  border-left: 3px solid currentColor;
+  border-bottom-left-radius: 3px;
+}
+
+/* Dealer Zone: Gold corners */
+.bjp-zone-dealer {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #d29922 !important;
+}
+
+/* Player Zone: Cyan corners */
+.bjp-zone-player {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #00d2ff !important;
+}
+
+/* -------------------------------------------------------------------------
+   4. Snipper Drag Selection Tool
+   ------------------------------------------------------------------------- */
+#bjp-snipper-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 2147483645;
+  background-color: rgba(0, 0, 0, 0.45);
+  cursor: crosshair;
+  user-select: none;
+}
+
+.bjp-snipper-banner {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(22, 27, 34, 0.96);
+  border: 2px solid #58a6ff;
+  border-radius: 8px;
+  color: #ffffff;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 2147483647;
+}
+
+.bjp-snipper-rect {
+  position: absolute;
+  border: 2px solid #58a6ff;
+  background-color: rgba(88, 166, 255, 0.12);
+  pointer-events: none;
+}
+
+.bjp-snipper-badge {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  background-color: #1f6feb;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* -------------------------------------------------------------------------
+   5. Card Bounding Box Layer
+   ------------------------------------------------------------------------- */
+#bjp-bbox-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 2147483635;
+}
