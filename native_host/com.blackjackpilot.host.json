@@ -1,0 +1,9 @@
+{
+  "name": "com.blackjackpilot.host",
+  "description": "Blackjack Pilot Native Messaging Server Launcher",
+  "path": "C:\\blackjack-pilot\\native_host\\launcher.bat",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://podfclammipadjiimlcodaobphalfhak/"
+  ]
+}

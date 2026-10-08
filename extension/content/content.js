@@ -9,9 +9,9 @@
   if (window.__bjp_active) return;
   window.__bjp_active = true;
 
-  const BUILD_VERSION = "v1.4.4";
+  const BUILD_VERSION = "v1.6.0";
   const BUILD_DATE = "2026-10-08";
-  const BUILD_TIMESTAMP = "2026-10-08 (Feed Area Restored, Spatial Card Counter & Cards Readout)";
+  const BUILD_TIMESTAMP = "2026-10-08 (Native Python Server Launcher)";
   console.log(
     `%c[Blackjack Pilot] Loaded ${BUILD_VERSION} (${BUILD_TIMESTAMP})`,
     "color: #58a6ff; font-weight: bold; font-size: 13px;"
@@ -38,7 +38,7 @@
 
   // Relative coordinates sent to Python engine (normalized 0.0 to 1.0)
   let dealerZoneRel = null; // [dx1, dy1, dx2, dy2]
-  let playerZoneRel = null; // [px1, py1, px2, py2]
+  let playerPointsRel = []; // [[x, y], ...] normalized positions picked for player hands
 
   // Settings
   let showHud = true;
@@ -47,6 +47,7 @@
   let confThresh = 0.35;
   let iouThresh = 0.50;
   let decksCount = 6;
+  const HAND_ZONE_SIZE = 2; // Constant 2% detection radius (not user-configurable)
 
   // DOM elements & Root Container
   let bjpRootEl = null;
@@ -55,6 +56,7 @@
   let feedBoxEl = null;
   let dealerBoxEl = null;
   let playerBoxEl = null;
+  let playerSpotsContainerEl = null;
   let bboxCanvasEl = null;
   let rafTrackingId = null;
 
@@ -85,16 +87,24 @@
 
         if (msg.type === "server_status") {
           serverConnected = !!msg.connected;
-          updateServerIndicator(serverConnected);
-          if (serverConnected && (dealerZoneRel || playerZoneRel)) {
+          updateServerIndicator(serverConnected, !!msg.starting, msg.error);
+          if (serverConnected) {
+            const ov = document.getElementById("bjp-rng-overlap");
+            sendCommand("set_hand_overlap", { pct: ov ? Number(ov.value) : 15 });
+          }
+          if (serverConnected && (dealerZoneRel || (playerPointsRel && playerPointsRel.length))) {
             syncZonesToServer();
+          }
+        } else if (msg.type === "server_start_result") {
+          if (msg.result && !msg.result.success) {
+            updateServerIndicator(false, false, msg.result.error);
           }
         } else if (msg.type === "server_result" && msg.payload) {
           isFrameInFlight = false;
           lastResultReceivedAt = Date.now();
           updateHudWithResult(msg.payload);
           if (drawBoxes) {
-            renderBoundingBoxes(msg.payload.detections);
+            renderBoundingBoxes(msg.payload.detections, msg.payload.hands);
           }
         }
       });
@@ -128,7 +138,9 @@
   function syncZonesToServer() {
     sendCommand("set_zones", {
       dealer_zone: dealerZoneRel,
-      player_zone: playerZoneRel,
+      player_points: playerPointsRel,
+      player_point: playerPointsRel.length ? playerPointsRel[0] : null,
+      hand_zone_size: HAND_ZONE_SIZE,
     });
   }
 
@@ -137,7 +149,8 @@
       chrome.storage.local.set({
         bjp_feed_rect: feedRect,
         bjp_dealer_zone: dealerZoneRel,
-        bjp_player_zone: playerZoneRel,
+        bjp_player_points: playerPointsRel,
+        bjp_player_point: playerPointsRel.length ? playerPointsRel[0] : null,
       });
     } catch (e) {}
   }
@@ -147,7 +160,8 @@
       chrome.storage.local.remove([
         "bjp_feed_rect",
         "bjp_dealer_zone",
-        "bjp_player_zone",
+        "bjp_player_point",
+        "bjp_player_points",
       ]);
     } catch (e) {}
   }
@@ -155,14 +169,20 @@
   function loadStoredCalibration() {
     try {
       chrome.storage.local.get(
-        ["bjp_feed_rect", "bjp_dealer_zone", "bjp_player_zone"],
+        ["bjp_feed_rect", "bjp_dealer_zone", "bjp_player_point", "bjp_player_points"],
         (data) => {
           if (data && data.bjp_feed_rect) {
             feedRect = data.bjp_feed_rect;
             if (data.bjp_dealer_zone) dealerZoneRel = data.bjp_dealer_zone;
-            if (data.bjp_player_zone) playerZoneRel = data.bjp_player_zone;
+            if (Array.isArray(data.bjp_player_points)) {
+              playerPointsRel = data.bjp_player_points;
+            } else if (data.bjp_player_point) {
+              playerPointsRel = [data.bjp_player_point];
+            } else {
+              playerPointsRel = [];
+            }
             applyOverlayPositions();
-            if (serverConnected && (dealerZoneRel || playerZoneRel)) {
+            if (serverConnected && (dealerZoneRel || (playerPointsRel && playerPointsRel.length))) {
               syncZonesToServer();
             }
           }
@@ -229,6 +249,10 @@
     playerBoxEl = makeCornerBox("bjp-zone-player");
     zoneOverlaysEl.appendChild(playerBoxEl);
 
+    playerSpotsContainerEl = document.createElement("div");
+    playerSpotsContainerEl.id = "bjp-player-spots-container";
+    zoneOverlaysEl.appendChild(playerSpotsContainerEl);
+
     getBjpRoot().appendChild(zoneOverlaysEl);
   }
 
@@ -240,6 +264,7 @@
       if (feedBoxEl) feedBoxEl.style.display = "none";
       if (dealerBoxEl) dealerBoxEl.style.display = "none";
       if (playerBoxEl) playerBoxEl.style.display = "none";
+      if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
       if (bboxCanvasEl) bboxCanvasEl.style.display = "none";
       return;
     }
@@ -248,6 +273,7 @@
       if (feedBoxEl) feedBoxEl.style.display = "none";
       if (dealerBoxEl) dealerBoxEl.style.display = "none";
       if (playerBoxEl) playerBoxEl.style.display = "none";
+      if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
     } else {
       if (feedBoxEl) {
         feedBoxEl.style.display = "block";
@@ -272,18 +298,24 @@
         dealerBoxEl.style.display = "none";
       }
 
-      if (playerBoxEl && playerZoneRel) {
-        const px = Math.round(rect.x + playerZoneRel[0] * rect.width);
-        const py = Math.round(rect.y + playerZoneRel[1] * rect.height);
-        const pw = Math.round((playerZoneRel[2] - playerZoneRel[0]) * rect.width);
-        const ph = Math.round((playerZoneRel[3] - playerZoneRel[1]) * rect.height);
-        playerBoxEl.style.display = "block";
-        playerBoxEl.style.left = `${px}px`;
-        playerBoxEl.style.top = `${py}px`;
-        playerBoxEl.style.width = `${pw}px`;
-        playerBoxEl.style.height = `${ph}px`;
-      } else if (playerBoxEl) {
-        playerBoxEl.style.display = "none";
+      if (playerBoxEl) playerBoxEl.style.display = "none";
+
+      if (playerSpotsContainerEl) {
+        if (!playerPointsRel || playerPointsRel.length === 0) {
+          playerSpotsContainerEl.innerHTML = "";
+        } else {
+          playerSpotsContainerEl.innerHTML = playerPointsRel
+            .map((pt, idx) => {
+              const px = Math.round(rect.x + pt[0] * rect.width);
+              const py = Math.round(rect.y + pt[1] * rect.height);
+              return `
+                <div class="bjp-spot-marker" style="display:flex; position:absolute; left:${px}px; top:${py}px; transform:translate(-50%, -50%); pointer-events:none; z-index:2147483632;">
+                  <span class="bjp-spot-num">${idx + 1}</span>
+                </div>
+              `;
+            })
+            .join("");
+        }
       }
     }
 
@@ -352,22 +384,26 @@
 
       <!-- Main Live HUD Readout -->
       <div class="bjp-body">
-        <div class="bjp-move-card" id="bjp-move-card">
-          <div class="bjp-move-label">Optimal Basic Strategy Action</div>
-          <div class="bjp-move-text" id="bjp-move-text">WAITING</div>
-          <div class="bjp-move-hint" id="bjp-move-hint" style="display:none;"></div>
-        </div>
-
-        <div class="bjp-hands-grid">
+        <div class="bjp-hands-grid" id="bjp-hands-grid">
           <div class="bjp-hand-card bjp-hand-dealer">
             <div class="bjp-hand-header">👑 Dealer</div>
-            <div class="bjp-hand-cards" id="bjp-dealer-cards">-</div>
-            <div class="bjp-hand-total" id="bjp-dealer-total">Total: -</div>
+            <div class="bjp-hand-dealer-bottom">
+              <div class="bjp-hand-cards" id="bjp-dealer-cards">-</div>
+              <div class="bjp-hand-total" id="bjp-dealer-total">Total: -</div>
+            </div>
           </div>
-          <div class="bjp-hand-card bjp-hand-player">
-            <div class="bjp-hand-header">👤 Player</div>
-            <div class="bjp-hand-cards" id="bjp-player-cards">-</div>
-            <div class="bjp-hand-total" id="bjp-player-total">Total: -</div>
+          <div class="bjp-hand-card bjp-hand-player" id="bjp-player-card">
+            <div class="bjp-hand-header" id="bjp-player-header">👤 Player</div>
+            <div id="bjp-player-single-content">
+              <div class="bjp-player-single-bottom">
+                <div class="bjp-hand-cards" id="bjp-player-cards">-</div>
+                <div class="bjp-player-meta-row">
+                  <div class="bjp-hand-total" id="bjp-player-total">Total: -</div>
+                  <span class="bjp-hand-badge" id="bjp-player-action-badge" style="display:none;"></span>
+                </div>
+              </div>
+            </div>
+            <div id="bjp-multi-hands-sublist" style="display:none;"></div>
           </div>
         </div>
 
@@ -394,7 +430,7 @@
         <div class="bjp-btn-grid">
           <button id="bjp-btn-sel-feed" class="bjp-btn bjp-btn-secondary">📹 1. Feed Area</button>
           <button id="bjp-btn-sel-dealer" class="bjp-btn bjp-btn-secondary">👑 2. Dealer Zone</button>
-          <button id="bjp-btn-sel-player" class="bjp-btn bjp-btn-secondary">👤 3. Player Zone</button>
+          <button id="bjp-btn-sel-player" class="bjp-btn bjp-btn-secondary">👤 3. Player Hands</button>
           <button id="bjp-btn-reset-zones" class="bjp-btn bjp-btn-secondary">↺ Clear Zones</button>
         </div>
 
@@ -407,7 +443,7 @@
           </span>
         </label>
         <label class="bjp-toggle-row" for="bjp-chk-boxes">
-          <span class="bjp-toggle-text" style="color: #ffffff !important; font-weight: 600 !important;">Draw Card Corner Overlays</span>
+          <span class="bjp-toggle-text" style="color: #ffffff !important; font-weight: 600 !important;">Draw Card Color Tint Overlays</span>
           <span class="bjp-switch">
             <input type="checkbox" id="bjp-chk-boxes" checked>
             <span class="bjp-slider"></span>
@@ -425,6 +461,11 @@
           <input type="range" id="bjp-rng-iou" min="20" max="80" value="50">
           <span id="bjp-lbl-iou" class="bjp-val-lbl">50%</span>
         </div>
+        <div class="bjp-slider-row" title="Cards join the same hand only if they overlap MORE than this share of the smaller card">
+          <label>Hand overlap:</label>
+          <input type="range" id="bjp-rng-overlap" min="0" max="80" value="15">
+          <span id="bjp-lbl-overlap" class="bjp-val-lbl">15%</span>
+        </div>
         <div class="bjp-slider-row">
           <label>Decks in Shoe:</label>
           <input type="number" id="bjp-num-decks" min="1" max="8" value="6" class="bjp-num-input">
@@ -434,6 +475,11 @@
           <button id="bjp-btn-rst-count" class="bjp-btn bjp-btn-secondary">Reset Count</button>
           <button id="bjp-btn-rst-stats" class="bjp-btn bjp-btn-secondary">Reset Stats</button>
         </div>
+
+        <div class="bjp-panel-title" style="margin-top:6px;">Python AI Server</div>
+        <button id="bjp-btn-start-server-opt" class="bjp-btn bjp-btn-primary" style="margin-top:4px;">
+          ⚡ Start Python Server
+        </button>
 
         <div class="bjp-panel-title" style="margin-top:6px;">Extension & Code Sync</div>
         <div class="bjp-sync-info">
@@ -523,14 +569,14 @@
       startSelection("dealer");
     });
     document.getElementById("bjp-btn-sel-player").addEventListener("click", () => {
-      startSelection("player");
+      startMultiHandSelection();
     });
     document.getElementById("bjp-btn-reset-zones").addEventListener("click", () => {
       feedRect = null;
       feedTargetEl = null;
       feedTargetOffset = null;
       dealerZoneRel = null;
-      playerZoneRel = null;
+      playerPointsRel = [];
       clearStoredCalibration();
       syncZonesToServer();
       applyOverlayPositions();
@@ -572,6 +618,14 @@
     numDecks.addEventListener("change", () => {
       decksCount = parseInt(numDecks.value, 10);
       sendCommand("set_decks", { decks: decksCount });
+    });
+
+    // Hand overlap threshold (% of the smaller card that must overlap to join a hand)
+    const rngOverlap = document.getElementById("bjp-rng-overlap");
+    const lblOverlap = document.getElementById("bjp-lbl-overlap");
+    rngOverlap.addEventListener("input", () => {
+      lblOverlap.textContent = `${rngOverlap.value}%`;
+      sendCommand("set_hand_overlap", { pct: Number(rngOverlap.value) });
     });
 
     // Reset Buttons
@@ -616,46 +670,173 @@
         }, 400);
       });
     }
+
+    // Direct Server Launch Controls
+    const serverPillEl = document.getElementById("bjp-server-pill");
+    if (serverPillEl) {
+      serverPillEl.addEventListener("click", () => {
+        if (!serverConnected) {
+          triggerStartServer();
+        }
+      });
+    }
+
+    const btnStartServerOpt = document.getElementById("bjp-btn-start-server-opt");
+    if (btnStartServerOpt) {
+      btnStartServerOpt.addEventListener("click", () => {
+        if (!serverConnected) {
+          triggerStartServer();
+        }
+      });
+    }
   }
 
-  function updateServerIndicator(connected) {
+  function triggerStartServer() {
+    updateServerIndicator(false, true);
+    try {
+      if (bgPort) {
+        bgPort.postMessage({ type: "start_server" });
+      } else {
+        connectPort();
+        setTimeout(() => {
+          if (bgPort) bgPort.postMessage({ type: "start_server" });
+        }, 300);
+      }
+    } catch (e) {
+      console.warn("[Blackjack Pilot] Start server error:", e);
+    }
+  }
+
+  function updateServerIndicator(connected, starting = false, error = null) {
     if (!hudEl) return;
     const pill = document.getElementById("bjp-server-pill");
     const txt = document.getElementById("bjp-server-status-text");
-    if (connected) {
-      pill.className = "bjp-server-pill connected";
-      txt.textContent = "Server: ON";
-    } else {
-      pill.className = "bjp-server-pill disconnected";
-      txt.textContent = "Server: OFF";
+    const btnStart = document.getElementById("bjp-btn-start-server-opt");
+
+    if (pill && txt) {
+      if (connected) {
+        pill.className = "bjp-server-pill connected";
+        txt.textContent = "Server: ON";
+        pill.title = "AI Server running & connected on port 8765";
+      } else if (starting) {
+        pill.className = "bjp-server-pill starting";
+        txt.textContent = "Server: Starting...";
+        pill.title = "Launching server.py in background via Native Host...";
+      } else {
+        pill.className = "bjp-server-pill disconnected";
+        txt.textContent = "Server: OFF";
+        pill.title = error ? `Server offline (${error}). Click to launch server.py` : "Server offline. Click to launch server.py automatically";
+      }
+    }
+
+    if (btnStart) {
+      if (connected) {
+        btnStart.textContent = "✔ Server Running (Port 8765)";
+        btnStart.style.backgroundColor = "#238636";
+        btnStart.disabled = true;
+      } else if (starting) {
+        btnStart.textContent = "⏳ Starting Python Server...";
+        btnStart.style.backgroundColor = "#9e6a03";
+        btnStart.disabled = true;
+      } else {
+        btnStart.textContent = "⚡ Start Python Server";
+        btnStart.style.backgroundColor = "";
+        btnStart.disabled = false;
+      }
     }
   }
 
   function updateHudWithResult(res) {
     if (!hudEl) return;
 
-    // Move Card
-    const moveCard = document.getElementById("bjp-move-card");
-    const moveText = document.getElementById("bjp-move-text");
-    const moveHint = document.getElementById("bjp-move-hint");
-
-    moveText.textContent = res.optimal_move || "WAITING";
-    moveCard.style.borderColor = res.move_color || "#58a6ff";
-    moveText.style.color = res.move_color || "#58a6ff";
-
-    if (res.count_hint) {
-      moveHint.style.display = "block";
-      moveHint.textContent = `⚡ ${res.count_hint}`;
-    } else {
-      moveHint.style.display = "none";
-    }
-
-    // Hands
+    // Dealer
     document.getElementById("bjp-dealer-cards").textContent = res.dealer_text || "-";
     document.getElementById("bjp-dealer-total").textContent = `Total: ${res.dealer_sum || "-"}`;
 
-    document.getElementById("bjp-player-cards").textContent = res.player_text || "-";
-    document.getElementById("bjp-player-total").textContent = `Total: ${res.player_sum || "-"}`;
+    // Player Cards & Strategy Actions
+    const playerHeaderEl = document.getElementById("bjp-player-header");
+    const playerCardsEl = document.getElementById("bjp-player-cards");
+    const playerTotalEl = document.getElementById("bjp-player-total");
+    const playerSingleContent = document.getElementById("bjp-player-single-content");
+    const playerActionBadge = document.getElementById("bjp-player-action-badge");
+    const multiHandsSublistEl = document.getElementById("bjp-multi-hands-sublist");
+
+    const numChosen = playerPointsRel ? playerPointsRel.length : 0;
+    const isMultiMode = numChosen > 1 || (res.player_hands && res.player_hands.length > 1);
+
+    if (isMultiMode) {
+      const totalHandsCount = Math.max(numChosen, res.player_hands ? res.player_hands.length : 0);
+      if (playerHeaderEl) playerHeaderEl.textContent = `👤 Player (${totalHandsCount} Hands)`;
+      if (playerSingleContent) playerSingleContent.style.display = "none";
+      if (multiHandsSublistEl) {
+        multiHandsSublistEl.style.display = "flex";
+
+        const matchedMap = new Map();
+        if (res.player_hands) {
+          for (const h of res.player_hands) {
+            matchedMap.set(h.hand_idx, h);
+          }
+        }
+
+        const rows = [];
+        for (let i = 1; i <= totalHandsCount; i++) {
+          const h = matchedMap.get(i);
+          if (h) {
+            rows.push(`
+              <div class="bjp-hand-subrow" style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px;">
+                <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
+                  <span style="font-weight:800; color:#00d2ff; font-size:11px;">H${h.hand_idx}</span>
+                  <span style="color:#ffffff; font-size:12px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${h.text || "-"}</span>
+                  <span style="color:#8b949e; font-size:11px;">(${h.sum || 0})</span>
+                </div>
+                <span class="bjp-hand-badge" style="background-color:${h.move_color || "#1f6feb"}; font-size:10px; font-weight:800; padding:2.5px 7px; border-radius:3px; color:#ffffff; flex-shrink:0;">
+                  ${h.optimal_move}
+                </span>
+              </div>
+            `);
+          } else {
+            rows.push(`
+              <div class="bjp-hand-subrow" style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); padding:4px 8px; border-radius:4px;">
+                <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
+                  <span style="font-weight:800; color:#8b949e; font-size:11px;">H${i}</span>
+                  <span style="color:#8b949e; font-size:12px; font-weight:600;">-</span>
+                  <span style="color:#6e7681; font-size:11px;">(0)</span>
+                </div>
+                <span class="bjp-hand-badge" style="background-color:#30363d; font-size:10px; font-weight:800; padding:2.5px 7px; border-radius:3px; color:#8b949e; flex-shrink:0;">
+                  WAITING
+                </span>
+              </div>
+            `);
+          }
+        }
+        multiHandsSublistEl.innerHTML = rows.join("");
+      }
+    } else {
+      const singleHand = (res.player_hands && res.player_hands[0]) || null;
+      if (playerHeaderEl) playerHeaderEl.textContent = singleHand ? `👤 Player (Hand 1)` : `👤 Player`;
+      if (playerSingleContent) playerSingleContent.style.display = "flex";
+      if (playerCardsEl) {
+        playerCardsEl.textContent = (singleHand ? singleHand.text : res.player_text) || "-";
+      }
+      if (playerTotalEl) {
+        playerTotalEl.textContent = `Total: ${(singleHand ? singleHand.sum : res.player_sum) || "-"}`;
+      }
+      if (playerActionBadge) {
+        const move = singleHand ? singleHand.optimal_move : res.optimal_move;
+        const color = singleHand ? singleHand.move_color : res.move_color;
+        if (move && move !== "WAITING" && move !== "") {
+          playerActionBadge.style.display = "inline-block";
+          playerActionBadge.textContent = move;
+          playerActionBadge.style.backgroundColor = color || "#1f6feb";
+        } else {
+          playerActionBadge.style.display = "none";
+        }
+      }
+      if (multiHandsSublistEl) {
+        multiHandsSublistEl.style.display = "none";
+        multiHandsSublistEl.innerHTML = "";
+      }
+    }
 
     // Count
     const cardsSeen = res.cards_seen ?? 0;
@@ -827,10 +1008,148 @@
   // ---------------------------------------------------------------------------
   // 5. Snipper Selection Tool
   // ---------------------------------------------------------------------------
-  function startSelection(target) {
+  function startMultiHandSelection() {
     if (document.getElementById("bjp-snipper-overlay")) return;
 
-    if ((target === "dealer" || target === "player") && !feedRect) {
+    if (!feedRect) {
+      alert("Please select the Feed Area (Step 1) first!");
+      return;
+    }
+
+    const curFeed = getFeedViewportRect();
+    if (!curFeed) {
+      alert("Could not determine feed coordinates!");
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.id = "bjp-snipper-overlay";
+    overlay.style.cursor = "crosshair";
+
+    // Working copy of player spot points
+    let tempPoints = playerPointsRel.map((p) => [p[0], p[1]]);
+
+    const banner = document.createElement("div");
+    banner.className = "bjp-snipper-banner bjp-multi-banner";
+    banner.innerHTML = `
+      <div class="bjp-multi-title">👤 Step 3: Select Player Hands</div>
+      <div class="bjp-multi-hint">
+        Click on your seat(s) or cards to add or remove player hands.<br>
+        (Click an existing number to remove it. Press Enter or Done when finished)
+      </div>
+      <div style="font-size:12px; font-weight:700; color:#00d2ff; margin-top:2px;" id="bjp-multi-count-status">
+        Selected: ${tempPoints.length} hand(s)
+      </div>
+      <div class="bjp-multi-buttons">
+        <button class="bjp-btn bjp-btn-primary" id="bjp-multi-btn-done">✓ Done (${tempPoints.length} hands)</button>
+        <button class="bjp-btn bjp-btn-secondary" id="bjp-multi-btn-clear">↺ Clear All</button>
+        <button class="bjp-btn bjp-btn-secondary" id="bjp-multi-btn-cancel">✕ Cancel (ESC)</button>
+      </div>
+    `;
+    overlay.appendChild(banner);
+
+    const spotsContainer = document.createElement("div");
+    spotsContainer.id = "bjp-multi-temp-spots";
+    overlay.appendChild(spotsContainer);
+
+    document.body.appendChild(overlay);
+
+    function updateBannerAndSpots() {
+      const statusEl = document.getElementById("bjp-multi-count-status");
+      const doneBtn = document.getElementById("bjp-multi-btn-done");
+      if (statusEl) statusEl.textContent = `Selected: ${tempPoints.length} hand(s)`;
+      if (doneBtn) doneBtn.textContent = `✓ Done (${tempPoints.length} hand${tempPoints.length === 1 ? "" : "s"})`;
+
+      spotsContainer.innerHTML = tempPoints
+        .map((pt, idx) => {
+          const sx = Math.round(curFeed.x + pt[0] * curFeed.width);
+          const sy = Math.round(curFeed.y + pt[1] * curFeed.height);
+          return `
+            <div class="bjp-spot-marker" style="display:flex; position:fixed; left:${sx}px; top:${sy}px; transform:translate(-50%, -50%); pointer-events:none; z-index:2147483646;">
+              <span class="bjp-spot-num">${idx + 1}</span>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    updateBannerAndSpots();
+
+    function finishSelection() {
+      playerPointsRel = tempPoints;
+      syncZonesToServer();
+      applyOverlayPositions();
+      saveStoredCalibration();
+      cleanup();
+    }
+
+    function cleanup() {
+      window.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+    }
+
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        cleanup();
+      } else if (e.key === "Enter") {
+        finishSelection();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+
+    overlay.addEventListener("click", (e) => {
+      // If clicking inside banner or buttons, do nothing
+      if (banner.contains(e.target)) return;
+
+      const clickX = e.clientX;
+      const clickY = e.clientY;
+
+      // Check if clicking near an existing spot to remove it (toggle off)
+      let removedIdx = -1;
+      for (let i = 0; i < tempPoints.length; i++) {
+        const sx = curFeed.x + tempPoints[i][0] * curFeed.width;
+        const sy = curFeed.y + tempPoints[i][1] * curFeed.height;
+        if (Math.hypot(clickX - sx, clickY - sy) < 22) {
+          removedIdx = i;
+          break;
+        }
+      }
+
+      if (removedIdx >= 0) {
+        tempPoints.splice(removedIdx, 1);
+      } else {
+        const nx = Math.max(0, Math.min(1, (clickX - curFeed.x) / curFeed.width));
+        const ny = Math.max(0, Math.min(1, (clickY - curFeed.y) / curFeed.height));
+        tempPoints.push([Number(nx.toFixed(4)), Number(ny.toFixed(4))]);
+      }
+
+      updateBannerAndSpots();
+    });
+
+    document.getElementById("bjp-multi-btn-done")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      finishSelection();
+    });
+    document.getElementById("bjp-multi-btn-clear")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tempPoints = [];
+      updateBannerAndSpots();
+    });
+    document.getElementById("bjp-multi-btn-cancel")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      cleanup();
+    });
+  }
+
+  function startSelection(target) {
+    if (target === "player") {
+      startMultiHandSelection();
+      return;
+    }
+
+    if (document.getElementById("bjp-snipper-overlay")) return;
+
+    if (target === "dealer" && !feedRect) {
       alert("Please select the Feed Area (Step 1) first!");
       return;
     }
@@ -843,7 +1162,6 @@
     const prompts = {
       feed: "Step 1: Drag rectangle over the TABLE / VIDEO FEED (Press ESC to cancel)",
       dealer: "Step 2: Drag rectangle inside feed over the DEALER'S CARDS (Press ESC to cancel)",
-      player: "Step 3: Drag rectangle inside feed over the PLAYER'S CARDS (Press ESC to cancel)",
     };
     banner.textContent = prompts[target] || "Drag rectangle with mouse";
     overlay.appendChild(banner);
@@ -913,7 +1231,7 @@
             pageY: y + window.scrollY,
           };
           dealerZoneRel = null;
-          playerZoneRel = null;
+          playerPointsRel = [];
 
           // Attempt to find underlying game element for responsive viewport anchoring
           try {
@@ -1003,18 +1321,6 @@
             applyOverlayPositions();
             saveStoredCalibration();
           }
-        } else if (target === "player" && feedRect) {
-          const curFeed = getFeedViewportRect();
-          if (curFeed) {
-            const px1 = Math.max(0, Math.min(1, (x - curFeed.x) / curFeed.width));
-            const py1 = Math.max(0, Math.min(1, (y - curFeed.y) / curFeed.height));
-            const px2 = Math.max(0, Math.min(1, (x + w - curFeed.x) / curFeed.width));
-            const py2 = Math.max(0, Math.min(1, (y + h - curFeed.y) / curFeed.height));
-            playerZoneRel = [px1, py1, px2, py2];
-            syncZonesToServer();
-            applyOverlayPositions();
-            saveStoredCalibration();
-          }
         }
       }
     });
@@ -1034,7 +1340,7 @@
   // ---------------------------------------------------------------------------
   // 6. Bounding Box Canvas Layer
   // ---------------------------------------------------------------------------
-  function renderBoundingBoxes(detections) {
+  function renderBoundingBoxes(detections, hands) {
     if (!bboxCanvasEl || !feedRect) return;
     const ctx = bboxCanvasEl.getContext("2d");
     ctx.clearRect(0, 0, bboxCanvasEl.width, bboxCanvasEl.height);
@@ -1043,6 +1349,20 @@
 
     const curFeed = getFeedViewportRect();
     if (!curFeed) return;
+
+    // Hand labels: subtle text tag H1, H2 above player hand (NO box brackets around hands)
+    if (hands && hands.length) {
+      for (const hand of hands) {
+        if (hand.is_player && hand.hand_idx && hand.bbox_norm) {
+          const hx1 = Math.round(hand.bbox_norm[0] * curFeed.width);
+          const hy1 = Math.round(hand.bbox_norm[1] * curFeed.height);
+          const pHue = (192 + ((hand.hand_idx - 1) * 65)) % 360;
+          ctx.fillStyle = `hsla(${pHue}, 95%, 65%, 0.95)`;
+          ctx.font = "bold 11px system-ui, sans-serif";
+          ctx.fillText(`H${hand.hand_idx}`, hx1, Math.max(12, hy1 - 4));
+        }
+      }
+    }
 
     for (const d of detections) {
       let x1, y1, w, h;
@@ -1064,44 +1384,55 @@
         continue;
       }
 
-      let strokeColor = "#3fb950"; // Green for table
-      if (d.category === "dealer") strokeColor = "#d29922"; // Gold
-      if (d.category === "player") strokeColor = "#00d2ff"; // Cyan
+      // Shared Hand Hue: all cards in the same hand share the EXACT same hue
+      let hue = 0;
+      if (d.category === "dealer" || d.hand_id === "dealer") {
+        hue = 42; // Warm casino gold for dealer cards
+      } else if (d.category === "player" || (d.hand_id && d.hand_id.startsWith("player_"))) {
+        const pIdx = d.hand_idx || (d.hand_id ? parseInt(d.hand_id.split("_")[1], 10) : 1) || 1;
+        // Hand 1: 192 (Cyan), Hand 2: 257 (Purple-Blue), Hand 3: 322 (Magenta)
+        hue = (192 + (pIdx - 1) * 65) % 360;
+      } else if (d.hand_id && d.hand_id.startsWith("table_")) {
+        const tIdx = parseInt(d.hand_id.split("_")[1], 10) || 0;
+        hue = (115 + tIdx * 70) % 360; // Distinct shared hue per table hand
+      } else if (hands && hands.length && d.bbox_norm) {
+        // Spatial fallback: check which hand bounds contain this card's center
+        const cx = (d.bbox_norm[0] + d.bbox_norm[2]) / 2;
+        const cy = (d.bbox_norm[1] + d.bbox_norm[3]) / 2;
+        let matchedHue = null;
+        for (let i = 0; i < hands.length; i++) {
+          const [hx1, hy1, hx2, hy2] = hands[i].bbox_norm;
+          if (cx >= hx1 - 0.02 && cx <= hx2 + 0.02 && cy >= hy1 - 0.02 && cy <= hy2 + 0.02) {
+            if (hands[i].is_player) {
+              const pIdx = hands[i].hand_idx || 1;
+              matchedHue = (192 + (pIdx - 1) * 65) % 360;
+            } else {
+              matchedHue = (115 + i * 70) % 360;
+            }
+            break;
+          }
+        }
+        hue = matchedHue !== null ? matchedHue : (typeof d.id === "number" ? Math.round((d.id * 137.5) % 360) : 120);
+      } else {
+        hue = typeof d.id === "number" ? Math.round((d.id * 137.5) % 360) : 120;
+      }
 
-      // Draw ONLY CORNERS, NO TEXT, ONLY COLOR (half-length reticles)
-      const cornerLen = Math.max(3, Math.min(7, Math.min(w, h) * 0.15));
-
-      ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-
-      // Top-Left corner
+      // Subtle translucent color wash over the card (~13% opacity)
+      ctx.fillStyle = `hsla(${hue}, 85%, 55%, 0.13)`;
+      const r = Math.min(6, Math.min(w, h) * 0.08);
       ctx.beginPath();
-      ctx.moveTo(x1, y1 + cornerLen);
-      ctx.lineTo(x1, y1);
-      ctx.lineTo(x1 + cornerLen, y1);
+      if (ctx.roundRect) {
+        ctx.roundRect(x1, y1, w, h, r);
+      } else {
+        ctx.rect(x1, y1, w, h);
+      }
+      ctx.fill();
+
+      // Soft hairline border for crisp tint edge
+      ctx.strokeStyle = `hsla(${hue}, 90%, 65%, 0.24)`;
+      ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Top-Right corner
-      ctx.beginPath();
-      ctx.moveTo(x1 + w - cornerLen, y1);
-      ctx.lineTo(x1 + w, y1);
-      ctx.lineTo(x1 + w, y1 + cornerLen);
-      ctx.stroke();
-
-      // Bottom-Right corner
-      ctx.beginPath();
-      ctx.moveTo(x1 + w, y1 + h - cornerLen);
-      ctx.lineTo(x1 + w, y1 + h);
-      ctx.lineTo(x1 + w - cornerLen, y1 + h);
-      ctx.stroke();
-
-      // Bottom-Left corner
-      ctx.beginPath();
-      ctx.moveTo(x1 + cornerLen, y1 + h);
-      ctx.lineTo(x1, y1 + h);
-      ctx.lineTo(x1, y1 + h - cornerLen);
-      ctx.stroke();
     }
   }
 

@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Blackjack Pilot - Live Casino HUD",
-  "version": "1.4.4",
+  "version": "1.6.0",
   "description": "AI-powered real-time Blackjack HUD overlay with card detection, Hi-Lo counting, and Basic Strategy recommendations.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAun8JdkKyZouMbVM3r/9ekoXPwxLOO5xyMticZYalgGUki/FcpmODKFQP3Hpzp/o/P8qr6daKxC1NSvs/fAwQy/+itSEi5/cXxQ3ikz2oUCMuDoVtlPQuXyvSxrR0RAKrrfrxUkqCiGLH3Di3Wc3kbEzTneDpPYe42ilwRpqpdFbIACLRfuXtVIG4Wj5sGgzcknTG5tCD0h5wOZaLqhqAsqz72Yk2v0AuCpw+BZ7YqF3C/D2aJ2Vuayy+zaVqv8/dlKGBKT2vHwEIxpF+8k7raQoY3UVRq9XAlBSpbQs/omYXJxXoVgcWfqw1SfMXOehJrcxMgE5DcwSwGrtccJFqtwIDAQAB",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -17,7 +18,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "nativeMessaging"
   ],
   "content_scripts": [
     {

@@ -5,19 +5,67 @@
  */
 
 const WS_URL = "ws://127.0.0.1:8765";
+const NATIVE_HOST_NAME = "com.blackjackpilot.host";
 let ws = null;
 let isConnected = false;
+let isStartingServer = false;
 let activePorts = new Set();
+
+function startNativeServer(callback) {
+  if (isStartingServer) {
+    if (callback) callback({ status: "already_starting" });
+    return;
+  }
+  isStartingServer = true;
+  broadcastToPorts({ type: "server_status", connected: false, starting: true });
+
+  try {
+    console.log("[Background] Requesting native host to launch server.py...");
+    chrome.runtime.sendNativeMessage(
+      NATIVE_HOST_NAME,
+      { action: "start_server" },
+      (response) => {
+        isStartingServer = false;
+        if (chrome.runtime.lastError) {
+          const errMsg = chrome.runtime.lastError.message || "Native host not registered";
+          console.warn("[Background] Native messaging error:", errMsg);
+          broadcastToPorts({
+            type: "server_status",
+            connected: false,
+            starting: false,
+            error: errMsg,
+          });
+          if (callback) callback({ success: false, error: errMsg });
+        } else {
+          console.log("[Background] Native host launch response:", response);
+          broadcastToPorts({ type: "server_status", connected: false, starting: true });
+          if (callback) callback({ success: true, payload: response });
+          setTimeout(connectWebSocket, 400);
+          setTimeout(connectWebSocket, 1200);
+          setTimeout(connectWebSocket, 2400);
+        }
+      }
+    );
+  } catch (err) {
+    isStartingServer = false;
+    console.warn("[Background] Native messaging exception:", err);
+    if (callback) callback({ success: false, error: String(err) });
+  }
+}
 
 function updateBadge(connected) {
   if (connected) {
     chrome.action.setBadgeText({ text: "ON" });
     chrome.action.setBadgeBackgroundColor({ color: "#238636" });
     chrome.action.setTitle({ title: "Blackjack Pilot: AI Server Connected" });
+  } else if (isStartingServer) {
+    chrome.action.setBadgeText({ text: "..." });
+    chrome.action.setBadgeBackgroundColor({ color: "#d29922" });
+    chrome.action.setTitle({ title: "Blackjack Pilot: Starting AI Server..." });
   } else {
     chrome.action.setBadgeText({ text: "OFF" });
     chrome.action.setBadgeBackgroundColor({ color: "#da3633" });
-    chrome.action.setTitle({ title: "Blackjack Pilot: AI Server Disconnected (Start server.py)" });
+    chrome.action.setTitle({ title: "Blackjack Pilot: AI Server Disconnected (Click to Start)" });
   }
 }
 
@@ -87,6 +135,10 @@ setInterval(() => {
 // Toolbar click toggles the on-page HUD overlay
 chrome.action.onClicked.addListener((tab) => {
   if (!tab.id) return;
+  if (!isConnected && !isStartingServer) {
+    console.log("[Background] Toolbar icon clicked while server disconnected, auto-starting server...");
+    startNativeServer();
+  }
   chrome.tabs.sendMessage(tab.id, { action: "toggle_hud" }, (res) => {
     if (chrome.runtime.lastError) {
       console.log("[Background] Content script not ready on tab, injecting manually...");
@@ -122,7 +174,16 @@ chrome.runtime.onConnect.addListener((port) => {
     console.log("[Background] Content script port connected. Active ports:", activePorts.size);
 
     // Send immediate server status
-    port.postMessage({ type: "server_status", connected: isConnected });
+    port.postMessage({ type: "server_status", connected: isConnected, starting: isStartingServer });
+
+    // If server is currently offline, automatically attempt native launch
+    if (!isConnected && !isStartingServer) {
+      setTimeout(() => {
+        if (!isConnected && !isStartingServer) {
+          startNativeServer();
+        }
+      }, 1000);
+    }
 
     port.onMessage.addListener((msg) => {
       if (!msg) return;
@@ -136,8 +197,13 @@ chrome.runtime.onConnect.addListener((port) => {
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify(msg.payload));
         }
+      } else if (msg.type === "start_server") {
+        console.log("[Background] Received start_server command from HUD.");
+        startNativeServer((res) => {
+          port.postMessage({ type: "server_start_result", result: res });
+        });
       } else if (msg.type === "get_status") {
-        port.postMessage({ type: "server_status", connected: isConnected });
+        port.postMessage({ type: "server_status", connected: isConnected, starting: isStartingServer });
       } else if (msg.type === "reload_extension") {
         console.log("[Background] Reload requested via port.");
         setTimeout(() => {

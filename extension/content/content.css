@@ -112,12 +112,28 @@
   background-color: rgba(63, 185, 80, 0.15);
   color: #3fb950;
   border: 1px solid #238636;
+  cursor: default;
+}
+
+.bjp-server-pill.starting {
+  background-color: rgba(210, 153, 34, 0.18);
+  color: #d29922;
+  border: 1px solid #d29922;
+  cursor: wait;
 }
 
 .bjp-server-pill.disconnected {
   background-color: rgba(248, 81, 73, 0.15);
   color: #f85149;
   border: 1px solid #da3633;
+  cursor: pointer;
+  transition: transform 0.15s, background-color 0.15s, border-color 0.15s;
+}
+
+.bjp-server-pill.disconnected:hover {
+  background-color: rgba(248, 81, 73, 0.28);
+  border-color: #f85149;
+  transform: scale(1.04);
 }
 
 .bjp-pill-dot {
@@ -162,55 +178,22 @@
   gap: 10px;
 }
 
-/* Move Banner */
-.bjp-move-card {
+/* Stacked Hands Layout - Dealer on top, Player below (Both full-width) */
+.bjp-hands-grid {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  background-color: #161b22;
-  border: 2px solid #58a6ff;
-  border-radius: 10px;
-  text-align: center;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.bjp-move-label {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #ffffff !important; /* Pure white */
-  margin-bottom: 4px;
-  letter-spacing: 0.5px;
-}
-
-.bjp-move-text {
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 1px;
-}
-
-.bjp-move-hint {
-  font-size: 11px;
-  color: #e3b341;
-  margin-top: 4px;
-  font-weight: 600;
-}
-
-/* Hands Grid */
-.bjp-hands-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 7px;
+  box-sizing: border-box;
+  align-items: stretch;
 }
 
 .bjp-hand-card {
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  box-sizing: border-box;
 }
 
 .bjp-hand-dealer {
@@ -235,18 +218,63 @@
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.bjp-hand-dealer-bottom,
+.bjp-player-single-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+#bjp-player-single-content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.bjp-player-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .bjp-hand-cards {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #ffffff;
-  min-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .bjp-hand-total {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
+  color: #e6edf3;
+  line-height: 1.2;
+}
+
+#bjp-player-action-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1.5px 5px;
+  border-radius: 3px;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+#bjp-multi-hands-sublist {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+  overflow: visible;
 }
 
 /* Card Counting Bar */
@@ -654,8 +682,95 @@
   font-size: 14px;
   font-weight: 700;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
-  pointer-events: none;
+  pointer-events: auto !important;
   z-index: 2147483647;
+}
+
+/* Numbered Player Spot Marker on live table & during selection */
+.bjp-spot-marker,
+.bjp-player-spot-marker {
+  position: absolute;
+  pointer-events: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  z-index: 2147483632;
+}
+
+.bjp-spot-num {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #00d2ff;
+  background: rgba(13, 17, 23, 0.88);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #00d2ff;
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(0, 210, 255, 0.5);
+  box-sizing: border-box;
+}
+
+/* Multi-Hand Selection Banner */
+.bjp-multi-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  text-align: center;
+}
+
+.bjp-multi-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.bjp-multi-hint {
+  font-size: 11px;
+  color: #c9d1d9;
+}
+
+.bjp-multi-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.bjp-multi-buttons button {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Multi-Hand Grid in HUD */
+.bjp-hands-grid.bjp-multi-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  max-height: 240px !important;
+  overflow-y: auto !important;
+}
+
+.bjp-hand-subrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.bjp-hand-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #ffffff;
+  text-transform: uppercase;
 }
 
 .bjp-snipper-rect {
