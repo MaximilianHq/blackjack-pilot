@@ -59,6 +59,8 @@
   let dealerBoxEl = null;
   let playerBoxEl = null;
   let playerSpotsContainerEl = null;
+  let exclusionContainerEl = null;
+  let exclusionZonesRel = [];
   let bboxCanvasEl = null;
   let rafTrackingId = null;
 
@@ -143,6 +145,7 @@
       player_points: playerPointsRel,
       player_point: playerPointsRel.length ? playerPointsRel[0] : null,
       hand_zone_size: HAND_ZONE_SIZE,
+      exclusion_zones: exclusionZonesRel,
     });
   }
 
@@ -153,6 +156,7 @@
         bjp_dealer_zone: dealerZoneRel,
         bjp_player_points: playerPointsRel,
         bjp_player_point: playerPointsRel.length ? playerPointsRel[0] : null,
+        bjp_exclusion_zones: exclusionZonesRel,
       });
     } catch (e) {}
   }
@@ -164,14 +168,22 @@
         "bjp_dealer_zone",
         "bjp_player_point",
         "bjp_player_points",
+        "bjp_exclusion_zones",
       ]);
     } catch (e) {}
+    exclusionZonesRel = [];
+    updateExcludeCount();
+  }
+
+  function updateExcludeCount() {
+    const el = document.getElementById("bjp-exclude-count");
+    if (el) el.textContent = exclusionZonesRel ? exclusionZonesRel.length : 0;
   }
 
   function loadStoredCalibration() {
     try {
       chrome.storage.local.get(
-        ["bjp_feed_rect", "bjp_dealer_zone", "bjp_player_point", "bjp_player_points"],
+        ["bjp_feed_rect", "bjp_dealer_zone", "bjp_player_point", "bjp_player_points", "bjp_exclusion_zones"],
         (data) => {
           if (data && data.bjp_feed_rect) {
             feedRect = data.bjp_feed_rect;
@@ -183,8 +195,14 @@
             } else {
               playerPointsRel = [];
             }
+            if (Array.isArray(data.bjp_exclusion_zones)) {
+              exclusionZonesRel = data.bjp_exclusion_zones;
+            } else {
+              exclusionZonesRel = [];
+            }
+            updateExcludeCount();
             applyOverlayPositions();
-            if (serverConnected && (dealerZoneRel || (playerPointsRel && playerPointsRel.length))) {
+            if (serverConnected && (dealerZoneRel || (playerPointsRel && playerPointsRel.length) || (exclusionZonesRel && exclusionZonesRel.length))) {
               syncZonesToServer();
             }
           }
@@ -256,6 +274,10 @@
     playerSpotsContainerEl.id = "bjp-player-spots-container";
     zoneOverlaysEl.appendChild(playerSpotsContainerEl);
 
+    exclusionContainerEl = document.createElement("div");
+    exclusionContainerEl.id = "bjp-exclusion-container";
+    zoneOverlaysEl.appendChild(exclusionContainerEl);
+
     getBjpRoot().appendChild(zoneOverlaysEl);
   }
 
@@ -268,6 +290,7 @@
       if (dealerBoxEl) dealerBoxEl.style.display = "none";
       if (playerBoxEl) playerBoxEl.style.display = "none";
       if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
+      if (exclusionContainerEl) exclusionContainerEl.innerHTML = "";
       if (bboxCanvasEl) bboxCanvasEl.style.display = "none";
       if (zoneOverlaysEl) zoneOverlaysEl.style.display = "none";
       return;
@@ -279,6 +302,7 @@
       if (dealerBoxEl) dealerBoxEl.style.display = "none";
       if (playerBoxEl) playerBoxEl.style.display = "none";
       if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
+      if (exclusionContainerEl) exclusionContainerEl.innerHTML = "";
     } else {
       if (feedBoxEl) {
         feedBoxEl.style.display = "block";
@@ -316,6 +340,26 @@
               return `
                 <div class="bjp-spot-marker" style="display:flex; position:absolute; left:${px}px; top:${py}px; transform:translate(-50%, -50%); pointer-events:none; z-index:2147483632;">
                   <span class="bjp-spot-num">${idx + 1}</span>
+                </div>
+              `;
+            })
+            .join("");
+        }
+      }
+
+      if (exclusionContainerEl) {
+        if (!exclusionZonesRel || exclusionZonesRel.length === 0) {
+          exclusionContainerEl.innerHTML = "";
+        } else {
+          exclusionContainerEl.innerHTML = exclusionZonesRel
+            .map((ez, idx) => {
+              const ex = Math.round(rect.x + ez[0] * rect.width);
+              const ey = Math.round(rect.y + ez[1] * rect.height);
+              const ew = Math.round((ez[2] - ez[0]) * rect.width);
+              const eh = Math.round((ez[3] - ez[1]) * rect.height);
+              return `
+                <div class="bjp-exclude-box" style="position:absolute; left:${ex}px; top:${ey}px; width:${ew}px; height:${eh}px; border:2px dashed #f85149; background:rgba(248,81,73,0.18); border-radius:4px; pointer-events:none; z-index:2147483632; box-sizing:border-box;">
+                  <span style="position:absolute; top:2px; left:4px; font-size:10px; font-weight:700; color:#ff7b72; background:rgba(20,20,20,0.85); padding:1px 4px; border-radius:3px; border:1px solid #f85149;">🚫 Exkluderad #${idx + 1}</span>
                 </div>
               `;
             })
@@ -467,6 +511,14 @@
           <button id="bjp-btn-sel-player" class="bjp-btn bjp-btn-secondary">👤 3. Player Hands</button>
           <button id="bjp-btn-reset-zones" class="bjp-btn bjp-btn-secondary">↺ Clear Zones</button>
         </div>
+        <div class="bjp-btn-grid" style="grid-template-columns: 1fr 1fr; margin-top: 4px;">
+          <button id="bjp-btn-sel-exclude" class="bjp-btn bjp-btn-secondary" style="border-color: #f85149; color: #ff7b72;">
+            🚫 + Exkludera Zon
+          </button>
+          <button id="bjp-btn-clear-exclude" class="bjp-btn bjp-btn-secondary">
+            🗑️ Rensa Exkludering (<span id="bjp-exclude-count">0</span>)
+          </button>
+        </div>
 
         <div class="bjp-panel-title" style="margin-top:6px;">Display Options</div>
         <label class="bjp-toggle-row" for="bjp-chk-zones">
@@ -613,16 +665,34 @@
     document.getElementById("bjp-btn-sel-player").addEventListener("click", () => {
       startMultiHandSelection();
     });
+    const btnSelExclude = document.getElementById("bjp-btn-sel-exclude");
+    if (btnSelExclude) {
+      btnSelExclude.addEventListener("click", () => {
+        startSelection("exclude");
+      });
+    }
+    const btnClearExclude = document.getElementById("bjp-btn-clear-exclude");
+    if (btnClearExclude) {
+      btnClearExclude.addEventListener("click", () => {
+        exclusionZonesRel = [];
+        syncZonesToServer();
+        applyOverlayPositions();
+        saveStoredCalibration();
+        updateExcludeCount();
+      });
+    }
     document.getElementById("bjp-btn-reset-zones").addEventListener("click", () => {
       feedRect = null;
       feedTargetEl = null;
       feedTargetOffset = null;
       dealerZoneRel = null;
       playerPointsRel = [];
+      exclusionZonesRel = [];
       clearStoredCalibration();
       syncZonesToServer();
       applyOverlayPositions();
       clearBoundingBoxes();
+      updateExcludeCount();
     });
 
     // Display Toggles
@@ -1251,8 +1321,8 @@
 
     if (document.getElementById("bjp-snipper-overlay")) return;
 
-    if (target === "dealer" && !feedRect) {
-      alert("Please select the Feed Area (Step 1) first!");
+    if ((target === "dealer" || target === "exclude") && !feedRect) {
+      alert("Vänligen markera Videon / Bordet (Feed Area) först!");
       return;
     }
 
@@ -1262,8 +1332,9 @@
     const banner = document.createElement("div");
     banner.className = "bjp-snipper-banner";
     const prompts = {
-      feed: "Step 1: Drag rectangle over the TABLE / VIDEO FEED (Press ESC to cancel)",
-      dealer: "Step 2: Drag rectangle inside feed over the DEALER'S CARDS (Press ESC to cancel)",
+      feed: "Steg 1: Dra en rektangel runt BORDET / VIDEON (ESC för att avbryta)",
+      dealer: "Steg 2: Dra en rektangel runt DEALERNS KORT (ESC för att avbryta)",
+      exclude: "🚫 Dra en rektangel över området du vill IGNORERA (t.ex. kort-preview/chatt) (ESC för att avbryta)",
     };
     banner.textContent = prompts[target] || "Drag rectangle with mouse";
     overlay.appendChild(banner);
@@ -1423,6 +1494,20 @@
             applyOverlayPositions();
             saveStoredCalibration();
           }
+        } else if (target === "exclude" && feedRect) {
+          const curFeed = getFeedViewportRect();
+          if (curFeed) {
+            const ex1 = Math.max(0, Math.min(1, (x - curFeed.x) / curFeed.width));
+            const ey1 = Math.max(0, Math.min(1, (y - curFeed.y) / curFeed.height));
+            const ex2 = Math.max(0, Math.min(1, (x + w - curFeed.x) / curFeed.width));
+            const ey2 = Math.max(0, Math.min(1, (y + h - curFeed.y) / curFeed.height));
+            if (!Array.isArray(exclusionZonesRel)) exclusionZonesRel = [];
+            exclusionZonesRel.push([ex1, ey1, ex2, ey2]);
+            syncZonesToServer();
+            applyOverlayPositions();
+            saveStoredCalibration();
+            updateExcludeCount();
+          }
         }
       }
     });
@@ -1581,6 +1666,7 @@
       if (dealerBoxEl) dealerBoxEl.style.display = "none";
       if (playerBoxEl) playerBoxEl.style.display = "none";
       if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
+      if (exclusionContainerEl) exclusionContainerEl.innerHTML = "";
       clearBoundingBoxes();
       if (isCapturing) {
         stopCapture();
@@ -1605,6 +1691,7 @@
       if (dealerBoxEl) dealerBoxEl.style.display = "none";
       if (playerBoxEl) playerBoxEl.style.display = "none";
       if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
+      if (exclusionContainerEl) exclusionContainerEl.innerHTML = "";
     } else {
       // Switched back to tab -> restore overlays ONLY IF this tab was active
       if (hudEl) {

@@ -896,3 +896,32 @@
   pointer-events: none;
   z-index: 2147483635;
 }
+
+/* -------------------------------------------------------------------------
+   6. Exclusion Zone Overlays
+   ------------------------------------------------------------------------- */
+.bjp-exclude-box {
+  position: fixed !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+  border: 2px dashed #f85149 !important;
+  background-color: rgba(248, 81, 73, 0.18) !important;
+  border-radius: 4px !important;
+  z-index: 2147483632 !important;
+}
+
+.bjp-exclude-badge {
+  position: absolute !important;
+  top: 2px !important;
+  left: 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: #ff7b72 !important;
+  background: rgba(20, 20, 20, 0.85) !important;
+  padding: 1px 4px !important;
+  border-radius: 3px !important;
+  border: 1px solid #f85149 !important;
+  user-select: none !important;
+  pointer-events: none !important;
+}
+

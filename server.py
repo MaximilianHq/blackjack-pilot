@@ -330,6 +330,7 @@ class BlackjackEngine:
         # Dealer zone: relative (x1, y1, x2, y2). Player: list of points [[x, y], ...] used to pick hands.
         self.dealer_zone = None
         self.player_points = []
+        self.exclusion_zones = []  # List of [x1, y1, x2, y2] to completely ignore
         self.hand_overlap_pct = 15.0  # overlap % that must be exceeded to join a hand
         self.hand_zone_pct = 2.0  # Constant 2% detection zone around player spot
         self.hand_zone_radius = 0.02
@@ -338,10 +339,12 @@ class BlackjackEngine:
         self.last_dealer_cards = []
         self.last_player_cards = []
 
-    def set_zones(self, dealer_zone, player_points, zone_size=None):
+    def set_zones(self, dealer_zone, player_points, zone_size=None, exclusion_zones=None):
         self.dealer_zone = dealer_zone
         self.hand_zone_pct = 2.0
         self.hand_zone_radius = 0.02
+        if exclusion_zones is not None:
+            self.set_exclusion_zones(exclusion_zones)
         if player_points is None:
             self.player_points = []
         elif isinstance(player_points, list):
@@ -357,6 +360,17 @@ class BlackjackEngine:
         # Sort left to right so hand 1, hand 2, etc. match visual order
         self.player_points.sort(key=lambda p: p[0])
         self.tracker.reset()
+
+    def set_exclusion_zones(self, exclusion_zones):
+        if not exclusion_zones:
+            self.exclusion_zones = []
+        elif isinstance(exclusion_zones, list):
+            self.exclusion_zones = [
+                ez for ez in exclusion_zones if isinstance(ez, (list, tuple)) and len(ez) == 4
+            ]
+        else:
+            self.exclusion_zones = []
+        print(f"[Engine] Exclusion zones updated: {len(self.exclusion_zones)} active.")
 
     def set_hand_zone_size(self, pct=2.0):
         self.hand_zone_pct = 2.0
@@ -401,7 +415,7 @@ class BlackjackEngine:
         if ox2 > ox1 and oy2 > oy1:
             overlap = (ox2 - ox1) * (oy2 - oy1)
             card_area = (x2 - x1) * (y2 - y1)
-            if card_area > 0 and (overlap / card_area) >= 0.30:
+            if card_area > 0 and (overlap / card_area) >= 0.05:
                 return True
         return False
 
@@ -432,6 +446,15 @@ class BlackjackEngine:
             ny1 = round(y1 / h, 4)
             nx2 = round(x2 / w, 4)
             ny2 = round(y2 / h, 4)
+
+            # Drop any card detected inside an exclusion zone!
+            in_exclusion = False
+            for ez in self.exclusion_zones:
+                if self._in_zone([nx1, ny1, nx2, ny2], ez):
+                    in_exclusion = True
+                    break
+            if in_exclusion:
+                continue
 
             raw_detections.append(
                 {
@@ -499,7 +522,7 @@ class BlackjackEngine:
             }
             all_candidates.append(d)
 
-        # 1. Start with cards directly inside or overlapping the dealer zone box
+        # 1. ONLY cards strictly inside or touching/overlapping the dealer zone box
         dealer_cards = []
         other_cards = []
 
@@ -511,23 +534,6 @@ class BlackjackEngine:
                 dealer_cards.append(d)
             else:
                 other_cards.append(d)
-
-        # 2. Expand dealer hand: include all cards within < 20% distance (0.20) of any card in the dealer hand
-        if dealer_cards and self.dealer_zone:
-            max_dealer_dist = 0.20
-            expanded = True
-            while expanded:
-                expanded = False
-                for d in list(other_cards):
-                    min_dist = min(
-                        box_distance(d["bbox_norm"], dc["bbox_norm"])
-                        for dc in dealer_cards
-                    )
-                    cy = (d["bbox_norm"][1] + d["bbox_norm"][3]) / 2.0
-                    if min_dist < max_dealer_dist and cy < 0.55:
-                        dealer_cards.append(d)
-                        other_cards.remove(d)
-                        expanded = True
 
         for d in dealer_cards:
             d["category"] = "dealer"
@@ -822,10 +828,11 @@ async def handler(websocket):
                     if pz is None:
                         pz = data.get("player_zone")
                     zs = data.get("hand_zone_size") or data.get("zone_size")
-                    engine.set_zones(dz, pz, zone_size=zs)
-                    print(f"[Engine] Zones set: Dealer={dz}, Player Points={pz}, Hand Zone={engine.hand_zone_pct}%")
+                    ez = data.get("exclusion_zones")
+                    engine.set_zones(dz, pz, zone_size=zs, exclusion_zones=ez)
+                    print(f"[Engine] Zones set: Dealer={dz}, Player Points={pz}, Exclusions={len(engine.exclusion_zones)}")
                     await websocket.send(
-                        json.dumps({"type": "zones_ack", "success": True, "hand_zone_pct": engine.hand_zone_pct})
+                        json.dumps({"type": "zones_ack", "success": True, "hand_zone_pct": engine.hand_zone_pct, "exclusion_count": len(engine.exclusion_zones)})
                     )
 
                 elif action == "set_hand_zone_size":
