@@ -402,15 +402,15 @@
             <div class="bjp-prompt-badge">⚡ AI Server Offline</div>
             <button class="bjp-prompt-close-btn" id="bjp-btn-dismiss-prompt" title="Dölj varning">✕</button>
           </div>
-          <div class="bjp-prompt-text">
-            Krävs för kortläsning & Hi-Lo counting. Klicka <strong>Öppna Server</strong> nedan, eller dubbelklicka <strong>Start-Blackjack-Server.bat</strong> i nedladdade mappen (ingen Python krävs!).
+          <div class="bjp-prompt-text" id="bjp-prompt-desc">
+            Krävs för kortläsning & Hi-Lo counting. Klicka <strong>Öppna Server</strong> nedan om du har paketet, eller ladda ner det via GitHub (ingen Python krävs!).
           </div>
           <div class="bjp-prompt-buttons">
-            <a href="https://github.com/MaximilianHq/blackjack-pilot" target="_blank" class="bjp-btn bjp-btn-github" id="bjp-btn-github-dl">
+            <a href="https://github.com/MaximilianHq/blackjack-pilot/releases" target="_blank" class="bjp-btn bjp-btn-github" id="bjp-btn-github-dl">
               <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" style="vertical-align:text-bottom; margin-right:4px;">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
-              Ladda ner (GitHub)
+              ⬇️ Ladda ner Server (.zip)
             </a>
             <button class="bjp-btn bjp-btn-primary bjp-btn-open-server" id="bjp-btn-prompt-start">
               ⚡ Öppna Server
@@ -510,13 +510,13 @@
           <button id="bjp-btn-rst-stats" class="bjp-btn bjp-btn-secondary">Reset Stats</button>
         </div>
 
-        <div class="bjp-panel-title" style="margin-top:6px;">Python AI Server</div>
+        <div class="bjp-panel-title" style="margin-top:6px;">Blackjack Pilot AI Server</div>
         <div style="display:flex; gap:6px; margin-top:4px;">
-          <a href="https://github.com/MaximilianHq/blackjack-pilot" target="_blank" class="bjp-btn bjp-btn-github" style="flex:1;">
+          <a href="https://github.com/MaximilianHq/blackjack-pilot/releases" target="_blank" class="bjp-btn bjp-btn-github" style="flex:1;">
             <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" style="vertical-align:text-bottom; margin-right:4px;">
               <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
             </svg>
-            GitHub Repo
+            Releases (.zip)
           </a>
           <button id="bjp-btn-start-server-opt" class="bjp-btn bjp-btn-primary" style="flex:1;">
             ⚡ Öppna Server
@@ -807,6 +807,14 @@
         promptEl.style.display = "none";
       } else {
         promptEl.style.display = "flex";
+        const promptTxt = document.getElementById("bjp-prompt-desc");
+        if (promptTxt) {
+          if (error) {
+            promptTxt.innerHTML = "⚠️ <strong>Servern finns inte på datorn än!</strong><br>Klicka på <strong>⬇️ Ladda ner Server (.zip)</strong> nedan för att hämta paketet (ingen Python krävs!).";
+          } else {
+            promptTxt.innerHTML = "Krävs för kortläsning & Hi-Lo counting. Klicka <strong>Öppna Server</strong> nedan om du har paketet, eller ladda ner det via GitHub (ingen Python krävs!).";
+          }
+        }
       }
     }
 

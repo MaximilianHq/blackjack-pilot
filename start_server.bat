@@ -34,6 +34,18 @@ python -c "import ultralytics, websockets, torch" >nul 2>&1
 if errorlevel 1 goto :install_deps
 
 :run_python_server
+:: Kontrollera om modellen ar en Git LFS textpekare (< 1 MB)
+if exist "models\yolo11m_blackjack_v1.pt" (
+    for %%F in ("models\yolo11m_blackjack_v1.pt") do (
+        if %%~zF LSS 1000000 (
+            echo [!] Modellfilen ar en Git LFS-pekare fran GitHub ZIP.
+            echo     Laddar automatiskt ner den riktiga AI-modellen (154 MB)...
+            powershell -Command "Invoke-WebRequest -Uri 'https://media.githubusercontent.com/media/MaximilianHq/blackjack-pilot/main/models/yolo11m_blackjack_v1.pt' -OutFile 'models\yolo11m_blackjack_v1.pt'"
+            echo [OK] Modellen ar nedladdad!
+        )
+    )
+)
+
 echo [OK] Startar Blackjack Pilot AI Server pa ws://127.0.0.1:8765 via Python...
 python -u server.py
 if errorlevel 1 (

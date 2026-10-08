@@ -237,6 +237,57 @@ def box_distance(a, b):
     return (dx * dx + dy * dy) ** 0.5
 
 
+MODEL_DOWNLOAD_URL = "https://media.githubusercontent.com/media/MaximilianHq/blackjack-pilot/main/models/yolo11m_blackjack_v1.pt"
+MODEL_FALLBACK_URL = "https://github.com/MaximilianHq/blackjack-pilot/raw/main/models/yolo11m_blackjack_v1.pt"
+
+
+def ensure_model_file(model_path):
+    """Detects Git LFS text pointers or missing weights and downloads the full model automatically."""
+    needs_download = False
+    if not os.path.exists(model_path):
+        needs_download = True
+    elif os.path.getsize(model_path) < 1_000_000:
+        needs_download = True
+    else:
+        try:
+            with open(model_path, "rb") as f:
+                header = f.read(20)
+                if header.startswith(b"version ") or b"git-lfs" in header:
+                    needs_download = True
+        except Exception:
+            pass
+
+    if needs_download:
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        print(f"[Engine] Upptäckte Git LFS-pekare eller saknad modellfil ({model_path}).")
+        print("[Engine] Laddar automatiskt ner den fullständiga AI-modellen från GitHub (154 MB)...")
+        import urllib.request
+        for download_url in [MODEL_DOWNLOAD_URL, MODEL_FALLBACK_URL]:
+            try:
+                req = urllib.request.Request(download_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=60) as response, open(model_path, "wb") as out_file:
+                    total_length = response.headers.get("Content-Length")
+                    if total_length:
+                        total_length = int(total_length)
+                        downloaded = 0
+                        while True:
+                            chunk = response.read(1024 * 512)
+                            if not chunk:
+                                break
+                            downloaded += len(chunk)
+                            out_file.write(chunk)
+                            percent = (downloaded / total_length) * 100
+                            print(f"\r[Engine] Laddar ner modell: {percent:.1f}% ({downloaded // (1024*1024)}MB / {total_length // (1024*1024)}MB)", end="", flush=True)
+                        print("\n[Engine] [OK] Modellen är färdignedladdad!")
+                    else:
+                        out_file.write(response.read())
+                        print("[Engine] [OK] Modellen är färdignedladdad!")
+                if os.path.exists(model_path) and os.path.getsize(model_path) > 1_000_000:
+                    return
+            except Exception as e:
+                print(f"\n[Engine] Nedladdningsfel från {download_url}: {e}")
+
+
 class BlackjackEngine:
     def __init__(self):
         self.strategy = BlackjackStrategy()
@@ -259,7 +310,11 @@ class BlackjackEngine:
                     if candidates:
                         model_path = candidates[0]
                         break
-        if not os.path.exists(model_path):
+
+        # Auto-download real weights if model is a Git LFS pointer
+        ensure_model_file(model_path)
+
+        if not os.path.exists(model_path) or os.path.getsize(model_path) < 1_000_000:
             raise FileNotFoundError(
                 f"No trained blackjack model found! Searched: {EXE_DIR}/models and {BASE_DIR}/models"
             )
