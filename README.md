@@ -45,17 +45,26 @@ blackjack-pilot/
 
 Run the assistant as a transparent HUD floating directly over your live casino table in **Microsoft Edge** or **Google Chrome**.
 
-### 1. Start the Local AI Server
-Launch the background engine that executes YOLO on GPU and evaluates hands:
+Repository: [https://github.com/MaximilianHq/blackjack-pilot](https://github.com/MaximilianHq/blackjack-pilot)
+
+### 1. Download & Start the Local AI Server
+Clone or download the repository:
 ```bash
-python server.py
+git clone https://github.com/MaximilianHq/blackjack-pilot.git
+cd blackjack-pilot
+pip install -r requirements.txt
 ```
-*(Runs on `ws://127.0.0.1:8765` with hardware acceleration)*
+
+Launch the server with 1-click:
+- **Option A (1-Click)**: Double-click `start_server.bat` (registers browser launcher and starts YOLO engine).
+- **Option B (Direct)**: Click **"⚡ Öppna / Starta Server"** directly inside the browser HUD!
+- **Option C (CLI)**: Run `python server.py` in your terminal.
+*(Runs on `ws://127.0.0.1:8765` with CUDA acceleration)*
 
 ### 2. Install Extension in Edge / Chrome
 1. Open Edge or Chrome and navigate to `edge://extensions` (or `chrome://extensions`).
 2. Enable **Developer mode** (toggle in the bottom-left / top-right).
-3. Click **Load unpacked** (*Läs in okomprimerat*) and select the `c:\blackjack-pilot\extension` folder.
+3. Click **Load unpacked** (*Läs in okomprimerat*) and select the `extension` folder.
 4. Pin the **Blackjack Pilot** icon to your browser toolbar.
 
 ### 3. Using the In-Browser Overlay

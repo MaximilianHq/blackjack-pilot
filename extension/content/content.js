@@ -9,17 +9,19 @@
   if (window.__bjp_active) return;
   window.__bjp_active = true;
 
-  const BUILD_VERSION = "v1.6.0";
+  const BUILD_VERSION = "v1.6.1";
   const BUILD_DATE = "2026-10-08";
-  const BUILD_TIMESTAMP = "2026-10-08 (Native Python Server Launcher)";
+  const BUILD_TIMESTAMP = "2026-10-08 (GitHub Server Prompt & Direct Launcher)";
   console.log(
     `%c[Blackjack Pilot] Loaded ${BUILD_VERSION} (${BUILD_TIMESTAMP})`,
     "color: #58a6ff; font-weight: bold; font-size: 13px;"
   );
 
-  // Background port bridge
+  // Background port bridge & Tab activation state
   let bgPort = null;
   let serverConnected = false;
+  let promptDismissed = false;
+  let isHudActiveOnThisTab = false; // Only active when user presses the extension icon on this tab!
 
   // Capture State & Flow Control
   let isCapturing = false;
@@ -222,6 +224,7 @@
 
     zoneOverlaysEl = document.createElement("div");
     zoneOverlaysEl.id = "bjp-zone-overlays";
+    zoneOverlaysEl.style.display = "none";
 
     function makeCornerBox(className) {
       const box = document.createElement("div");
@@ -260,14 +263,16 @@
     if (!zoneOverlaysEl) initZoneOverlays();
 
     const rect = getFeedViewportRect();
-    if (!rect) {
+    if (!rect || !isHudActiveOnThisTab || document.hidden) {
       if (feedBoxEl) feedBoxEl.style.display = "none";
       if (dealerBoxEl) dealerBoxEl.style.display = "none";
       if (playerBoxEl) playerBoxEl.style.display = "none";
       if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
       if (bboxCanvasEl) bboxCanvasEl.style.display = "none";
+      if (zoneOverlaysEl) zoneOverlaysEl.style.display = "none";
       return;
     }
+    if (zoneOverlaysEl) zoneOverlaysEl.style.display = "block";
 
     if (!showZones) {
       if (feedBoxEl) feedBoxEl.style.display = "none";
@@ -337,7 +342,9 @@
 
   function startPositionTracking() {
     function tick() {
-      applyOverlayPositions();
+      if (isHudActiveOnThisTab && !document.hidden) {
+        applyOverlayPositions();
+      }
       rafTrackingId = requestAnimationFrame(tick);
     }
     if (!rafTrackingId) {
@@ -355,12 +362,17 @@
     const existing = document.getElementById("bjp-hud");
     if (existing) {
       hudEl = existing;
-      hudEl.classList.remove("bjp-hidden");
+      if (isHudActiveOnThisTab) {
+        hudEl.classList.remove("bjp-hidden");
+      } else {
+        hudEl.classList.add("bjp-hidden");
+      }
       return;
     }
 
     hudEl = document.createElement("div");
     hudEl.id = "bjp-hud";
+    hudEl.className = isHudActiveOnThisTab ? "" : "bjp-hidden";
     hudEl.innerHTML = `
       <!-- Header -->
       <div class="bjp-header" id="bjp-drag-handle">
@@ -384,6 +396,28 @@
 
       <!-- Main Live HUD Readout -->
       <div class="bjp-body">
+        <!-- Server Offline / GitHub Download Prompt -->
+        <div class="bjp-server-prompt" id="bjp-server-prompt" style="display:none;">
+          <div class="bjp-prompt-header">
+            <div class="bjp-prompt-badge">⚡ AI Server Offline</div>
+            <button class="bjp-prompt-close-btn" id="bjp-btn-dismiss-prompt" title="Dölj varning">✕</button>
+          </div>
+          <div class="bjp-prompt-text">
+            Krävs för automatisk kortläsning & Hi-Lo counting. Ladda ner från GitHub eller öppna servern på datorn:
+          </div>
+          <div class="bjp-prompt-buttons">
+            <a href="https://github.com/MaximilianHq/blackjack-pilot" target="_blank" class="bjp-btn bjp-btn-github" id="bjp-btn-github-dl">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" style="vertical-align:text-bottom; margin-right:4px;">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              Ladda ner (GitHub)
+            </a>
+            <button class="bjp-btn bjp-btn-primary bjp-btn-open-server" id="bjp-btn-prompt-start">
+              ⚡ Öppna Server
+            </button>
+          </div>
+        </div>
+
         <div class="bjp-hands-grid" id="bjp-hands-grid">
           <div class="bjp-hand-card bjp-hand-dealer">
             <div class="bjp-hand-header">👑 Dealer</div>
@@ -477,9 +511,17 @@
         </div>
 
         <div class="bjp-panel-title" style="margin-top:6px;">Python AI Server</div>
-        <button id="bjp-btn-start-server-opt" class="bjp-btn bjp-btn-primary" style="margin-top:4px;">
-          ⚡ Start Python Server
-        </button>
+        <div style="display:flex; gap:6px; margin-top:4px;">
+          <a href="https://github.com/MaximilianHq/blackjack-pilot" target="_blank" class="bjp-btn bjp-btn-github" style="flex:1;">
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" style="vertical-align:text-bottom; margin-right:4px;">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            GitHub Repo
+          </a>
+          <button id="bjp-btn-start-server-opt" class="bjp-btn bjp-btn-primary" style="flex:1;">
+            ⚡ Öppna Server
+          </button>
+        </div>
 
         <div class="bjp-panel-title" style="margin-top:6px;">Extension & Code Sync</div>
         <div class="bjp-sync-info">
@@ -548,7 +590,7 @@
     });
 
     document.getElementById("bjp-btn-close").addEventListener("click", () => {
-      hudEl.classList.add("bjp-hidden");
+      setHudActive(false);
     });
 
     // Capture Toggle Button
@@ -689,6 +731,22 @@
         }
       });
     }
+
+    const btnDismissPrompt = document.getElementById("bjp-btn-dismiss-prompt");
+    if (btnDismissPrompt) {
+      btnDismissPrompt.addEventListener("click", () => {
+        promptDismissed = true;
+        const promptEl = document.getElementById("bjp-server-prompt");
+        if (promptEl) promptEl.style.display = "none";
+      });
+    }
+
+    const btnPromptStart = document.getElementById("bjp-btn-prompt-start");
+    if (btnPromptStart) {
+      btnPromptStart.addEventListener("click", () => {
+        triggerStartServer();
+      });
+    }
   }
 
   function triggerStartServer() {
@@ -712,6 +770,8 @@
     const pill = document.getElementById("bjp-server-pill");
     const txt = document.getElementById("bjp-server-status-text");
     const btnStart = document.getElementById("bjp-btn-start-server-opt");
+    const promptEl = document.getElementById("bjp-server-prompt");
+    const promptStartBtn = document.getElementById("bjp-btn-prompt-start");
 
     if (pill && txt) {
       if (connected) {
@@ -721,25 +781,46 @@
       } else if (starting) {
         pill.className = "bjp-server-pill starting";
         txt.textContent = "Server: Starting...";
-        pill.title = "Launching server.py in background via Native Host...";
+        pill.title = "Launching server.py via Native Host...";
       } else {
         pill.className = "bjp-server-pill disconnected";
         txt.textContent = "Server: OFF";
-        pill.title = error ? `Server offline (${error}). Click to launch server.py` : "Server offline. Click to launch server.py automatically";
+        pill.title = error ? `Server offline (${error}). Click to launch server.py` : "Server offline. Click to launch server.py";
+      }
+    }
+
+    if (promptEl) {
+      if (connected || promptDismissed) {
+        promptEl.style.display = "none";
+      } else {
+        promptEl.style.display = "flex";
+      }
+    }
+
+    if (promptStartBtn) {
+      if (starting) {
+        promptStartBtn.textContent = "⏳ Öppnar Server...";
+        promptStartBtn.disabled = true;
+      } else if (connected) {
+        promptStartBtn.textContent = "✔ Server Igång";
+        promptStartBtn.disabled = true;
+      } else {
+        promptStartBtn.textContent = "⚡ Öppna Server";
+        promptStartBtn.disabled = false;
       }
     }
 
     if (btnStart) {
       if (connected) {
-        btnStart.textContent = "✔ Server Running (Port 8765)";
+        btnStart.textContent = "✔ Server Igång";
         btnStart.style.backgroundColor = "#238636";
         btnStart.disabled = true;
       } else if (starting) {
-        btnStart.textContent = "⏳ Starting Python Server...";
+        btnStart.textContent = "⏳ Öppnar Server...";
         btnStart.style.backgroundColor = "#9e6a03";
         btnStart.disabled = true;
       } else {
-        btnStart.textContent = "⚡ Start Python Server";
+        btnStart.textContent = "⚡ Öppna Server";
         btnStart.style.backgroundColor = "";
         btnStart.disabled = false;
       }
@@ -1444,27 +1525,103 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 7. Message Dispatcher (Triggered by Toolbar Icon Click)
+  // 7. Message Dispatcher & Tab Lifecycle Management
   // ---------------------------------------------------------------------------
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.action === "toggle_hud") {
+  function setHudActive(active) {
+    isHudActiveOnThisTab = !!active;
+
+    if (isHudActiveOnThisTab) {
       if (!hudEl || !document.contains(hudEl)) {
         createHud();
       }
       if (hudEl) {
-        hudEl.classList.toggle("bjp-hidden");
+        hudEl.classList.remove("bjp-hidden");
+        hudEl.classList.remove("bjp-hidden-tab");
       }
-      sendResponse({ toggled: true });
+      if (zoneOverlaysEl) {
+        zoneOverlaysEl.style.display = "block";
+      }
+      if (bboxCanvasEl) {
+        bboxCanvasEl.style.display = drawBoxes ? "block" : "none";
+      }
+      applyOverlayPositions();
+      connectPort();
+    } else {
+      if (hudEl) {
+        hudEl.classList.add("bjp-hidden");
+      }
+      if (zoneOverlaysEl) {
+        zoneOverlaysEl.style.display = "none";
+      }
+      if (bboxCanvasEl) {
+        bboxCanvasEl.style.display = "none";
+      }
+      if (feedBoxEl) feedBoxEl.style.display = "none";
+      if (dealerBoxEl) dealerBoxEl.style.display = "none";
+      if (playerBoxEl) playerBoxEl.style.display = "none";
+      if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
+      clearBoundingBoxes();
+      if (isCapturing) {
+        stopCapture();
+      }
+    }
+  }
+
+  // Automatically hide overlays whenever the user switches tabs or minimizes
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      // Switched away from tab -> immediately hide HUD, zone reticles, and canvas
+      if (hudEl) {
+        hudEl.classList.add("bjp-hidden-tab");
+      }
+      if (zoneOverlaysEl) {
+        zoneOverlaysEl.style.display = "none";
+      }
+      if (bboxCanvasEl) {
+        bboxCanvasEl.style.display = "none";
+      }
+      if (feedBoxEl) feedBoxEl.style.display = "none";
+      if (dealerBoxEl) dealerBoxEl.style.display = "none";
+      if (playerBoxEl) playerBoxEl.style.display = "none";
+      if (playerSpotsContainerEl) playerSpotsContainerEl.innerHTML = "";
+    } else {
+      // Switched back to tab -> restore overlays ONLY IF this tab was active
+      if (hudEl) {
+        hudEl.classList.remove("bjp-hidden-tab");
+      }
+      if (isHudActiveOnThisTab) {
+        if (hudEl) {
+          hudEl.classList.remove("bjp-hidden");
+        }
+        if (zoneOverlaysEl) {
+          zoneOverlaysEl.style.display = "block";
+        }
+        if (bboxCanvasEl) {
+          bboxCanvasEl.style.display = drawBoxes ? "block" : "none";
+        }
+        applyOverlayPositions();
+      } else {
+        if (hudEl) {
+          hudEl.classList.add("bjp-hidden");
+        }
+      }
     }
   });
 
-  // Initialization with DOM safety
+  // Triggered when user presses the extension icon in browser toolbar
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.action === "toggle_hud") {
+      setHudActive(!isHudActiveOnThisTab);
+      sendResponse({ toggled: true, active: isHudActiveOnThisTab });
+    }
+  });
+
+  // Initialization with DOM safety (Starts 100% hidden on all tabs)
   function initAll() {
     createHud();
     initZoneOverlays();
     loadStoredCalibration();
     startPositionTracking();
-    connectPort();
   }
 
   if (document.readyState === "loading") {

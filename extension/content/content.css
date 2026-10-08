@@ -39,7 +39,8 @@
   display: none !important;
 }
 
-#bjp-hud.bjp-hidden {
+#bjp-hud.bjp-hidden,
+#bjp-hud.bjp-hidden-tab {
   display: none !important;
 }
 
@@ -176,6 +177,99 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* Server Offline / GitHub Download Prompt */
+.bjp-server-prompt {
+  background: linear-gradient(135deg, rgba(22, 27, 34, 0.98), rgba(13, 17, 23, 0.98));
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+.bjp-prompt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bjp-prompt-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #f0883e;
+  background-color: rgba(240, 136, 62, 0.15);
+  border: 1px solid rgba(240, 136, 62, 0.4);
+  padding: 1.5px 6px;
+  border-radius: 4px;
+}
+
+.bjp-prompt-close-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.bjp-prompt-close-btn:hover {
+  background: #30363d;
+  color: #ffffff;
+}
+
+.bjp-prompt-text {
+  font-size: 11px;
+  color: #c9d1d9;
+  line-height: 1.35;
+}
+
+.bjp-prompt-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.bjp-btn-github {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: #c9d1d9 !important;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 6px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.bjp-btn-github:hover {
+  background: #30363d;
+  border-color: #58a6ff;
+  color: #ffffff !important;
+}
+
+.bjp-btn-open-server {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 6px;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 /* Stacked Hands Layout - Dealer on top, Player below (Both full-width) */

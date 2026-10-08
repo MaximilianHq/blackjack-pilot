@@ -176,15 +176,6 @@ chrome.runtime.onConnect.addListener((port) => {
     // Send immediate server status
     port.postMessage({ type: "server_status", connected: isConnected, starting: isStartingServer });
 
-    // If server is currently offline, automatically attempt native launch
-    if (!isConnected && !isStartingServer) {
-      setTimeout(() => {
-        if (!isConnected && !isStartingServer) {
-          startNativeServer();
-        }
-      }, 1000);
-    }
-
     port.onMessage.addListener((msg) => {
       if (!msg) return;
 

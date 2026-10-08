@@ -31,17 +31,17 @@ def start_server():
             "port": PORT,
         }
 
-    # Start python server completely detached in the background
-    DETACHED_PROCESS = 0x00000008
-    CREATE_NEW_PROCESS_GROUP = 0x00000200
-    CREATE_NO_WINDOW = 0x08000000
+    start_bat = os.path.join(PROJECT_DIR, "start_server.bat")
+    if os.path.exists(start_bat):
+        cmd = f'cmd.exe /c start "Blackjack Pilot AI Server" "{start_bat}"'
+    else:
+        python_exe = sys.executable
+        cmd = f'cmd.exe /c start "Blackjack Pilot AI Server" "{python_exe}" -u "{SERVER_SCRIPT}"'
 
-    python_exe = sys.executable
     proc = subprocess.Popen(
-        [python_exe, "-u", SERVER_SCRIPT],
+        cmd,
         cwd=PROJECT_DIR,
-        creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
-        close_fds=True,
+        shell=True,
     )
 
     # Poll port for up to 3.5 seconds
