@@ -403,7 +403,7 @@
             <button class="bjp-prompt-close-btn" id="bjp-btn-dismiss-prompt" title="Dölj varning">✕</button>
           </div>
           <div class="bjp-prompt-text">
-            Krävs för automatisk kortläsning & Hi-Lo counting. Ladda ner från GitHub eller öppna servern på datorn:
+            Krävs för kortläsning & Hi-Lo counting. Klicka <strong>Öppna Server</strong> nedan, eller dubbelklicka <strong>Start-Blackjack-Server.bat</strong> i nedladdade mappen (ingen Python krävs!).
           </div>
           <div class="bjp-prompt-buttons">
             <a href="https://github.com/MaximilianHq/blackjack-pilot" target="_blank" class="bjp-btn bjp-btn-github" id="bjp-btn-github-dl">
@@ -751,6 +751,19 @@
 
   function triggerStartServer() {
     updateServerIndicator(false, true);
+
+    // 1. Try protocol handler in background iframe (works if user previously ran .bat/.exe)
+    try {
+      const ifr = document.createElement("iframe");
+      ifr.style.display = "none";
+      ifr.src = "blackjack-pilot://start";
+      document.body.appendChild(ifr);
+      setTimeout(() => {
+        try { ifr.remove(); } catch (e) {}
+      }, 1500);
+    } catch (e) {}
+
+    // 2. Try Chrome Native Messaging host
     try {
       if (bgPort) {
         bgPort.postMessage({ type: "start_server" });
@@ -777,15 +790,15 @@
       if (connected) {
         pill.className = "bjp-server-pill connected";
         txt.textContent = "Server: ON";
-        pill.title = "AI Server running & connected on port 8765";
+        pill.title = "AI Engine körs och är ansluten på port 8765";
       } else if (starting) {
         pill.className = "bjp-server-pill starting";
-        txt.textContent = "Server: Starting...";
-        pill.title = "Launching server.py via Native Host...";
+        txt.textContent = "Server: Startar...";
+        pill.title = "Startar Blackjack Pilot AI Engine...";
       } else {
         pill.className = "bjp-server-pill disconnected";
         txt.textContent = "Server: OFF";
-        pill.title = error ? `Server offline (${error}). Click to launch server.py` : "Server offline. Click to launch server.py";
+        pill.title = error ? `AI Server Offline (${error}). Klicka för att starta.` : "AI Server Offline. Klicka för att starta.";
       }
     }
 
@@ -799,7 +812,7 @@
 
     if (promptStartBtn) {
       if (starting) {
-        promptStartBtn.textContent = "⏳ Öppnar Server...";
+        promptStartBtn.textContent = "⏳ Startar Server...";
         promptStartBtn.disabled = true;
       } else if (connected) {
         promptStartBtn.textContent = "✔ Server Igång";
@@ -816,7 +829,7 @@
         btnStart.style.backgroundColor = "#238636";
         btnStart.disabled = true;
       } else if (starting) {
-        btnStart.textContent = "⏳ Öppnar Server...";
+        btnStart.textContent = "⏳ Startar Server...";
         btnStart.style.backgroundColor = "#9e6a03";
         btnStart.disabled = true;
       } else {

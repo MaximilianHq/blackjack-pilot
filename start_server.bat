@@ -8,27 +8,34 @@ echo       GitHub: https://github.com/MaximilianHq/blackjack-pilot
 echo ========================================================
 echo.
 
-:: 1. Kontrollera om Python ar installerat
+:: 0. Registrera Chrome/Edge Native Messaging automatiskt om host finns
+if exist "native_host\BlackjackHost.exe" (
+    "native_host\BlackjackHost.exe" --register >nul 2>&1
+)
+
+:: 1. Om standalone EXE finns i dist eller root, starta den direkt (NO PYTHON NEEDED!)
+if exist "BlackjackPilotServer.exe" (
+    echo [OK] Standalone AI Engine hittad. Startar server...
+    start "Blackjack Pilot AI Server" "BlackjackPilotServer.exe"
+    exit /b 0
+)
+
+if exist "dist\BlackjackPilotServer\BlackjackPilotServer.exe" (
+    echo [OK] Standalone AI Engine hittad. Startar server...
+    start "Blackjack Pilot AI Server" "dist\BlackjackPilotServer\BlackjackPilotServer.exe"
+    exit /b 0
+)
+
+:: 2. Fallback: For utvecklare med Python installerat
 python --version >nul 2>&1
 if errorlevel 1 goto :no_python
 
-:: 2. Kontrollera om biblioteken finns
 python -c "import ultralytics, websockets, torch" >nul 2>&1
 if errorlevel 1 goto :install_deps
 
-:run_server
-:: 3. Registrera Native Messaging i Chrome/Edge
-if exist "native_host\register_host.py" (
-    python native_host\register_host.py >nul 2>&1
-)
-
-:: 4. Starta Blackjack Pilot AI Engine
-echo [OK] Startar Blackjack Pilot AI Server pa ws://127.0.0.1:8765...
-echo Lat detta fonster vara oppet medan du spelar pa casinot.
-echo.
-
+:run_python_server
+echo [OK] Startar Blackjack Pilot AI Server pa ws://127.0.0.1:8765 via Python...
 python -u server.py
-
 if errorlevel 1 (
     echo.
     echo Servern stangdes av.
@@ -49,21 +56,12 @@ if errorlevel 1 (
 )
 echo.
 echo [OK] Alla bibliotek har installerats!
-goto :run_server
+goto :run_python_server
 
 :no_python
-echo [!] Python hittades inte pa datorn!
-echo Forsoker installera Python automatiskt via Windows...
-winget install -e --id Python.Python.3.11 --accept-source-agreements --accept-package-agreements
-if errorlevel 1 (
-    echo.
-    echo [X] Kunde inte installera Python automatiskt.
-    echo Vanligen ladda ner Python manuellt fran https://www.python.org/downloads/
-    echo Kom ihag att kryssa i Add python.exe to PATH vid installationen.
-    pause
-    exit /b 1
-)
+echo [!] Varken BlackjackPilotServer.exe eller Python hittades pa datorn!
+echo Ladda ner fardiga Windows-paketet fran GitHub Releases:
+echo https://github.com/MaximilianHq/blackjack-pilot/releases
 echo.
-echo [OK] Python har installerats. Starta om start_server.bat for att fortsatta.
 pause
-exit /b 0
+exit /b 1

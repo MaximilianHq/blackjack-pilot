@@ -831,6 +831,23 @@ async def handler(websocket):
         print(f"[WebSocket] Client disconnected: {client_ip}")
 
 
+def auto_register_windows_protocol():
+    """Silently registers blackjack-pilot:// URI scheme in Windows HKCU registry for 1-click browser launch."""
+    if sys.platform != "win32":
+        return
+    try:
+        import winreg
+        exe_path = sys.executable if getattr(sys, "frozen", False) else os.path.join(EXE_DIR, "start_server.bat")
+        key_path = r"Software\Classes\blackjack-pilot"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as k:
+            winreg.SetValueEx(k, "", 0, winreg.REG_SZ, "URL:Blackjack Pilot Protocol")
+            winreg.SetValueEx(k, "URL Protocol", 0, winreg.REG_SZ, "")
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path + r"\shell\open\command") as k:
+            winreg.SetValueEx(k, "", 0, winreg.REG_SZ, f'"{exe_path}"')
+    except Exception:
+        pass
+
+
 async def main():
     global engine
     engine = BlackjackEngine()
@@ -845,6 +862,7 @@ async def main():
 
 
 if __name__ == "__main__":
+    auto_register_windows_protocol()
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
